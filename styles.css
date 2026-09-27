@@ -1,0 +1,167 @@
+/* Lineage Family Tree. Everything is prefixed .lineage- and themed with Obsidian variables. */
+
+.lineage-container {
+	position: relative;
+	margin: 0.5em 0;
+	font-family: var(--font-text);
+}
+
+.lineage-viewport {
+	position: relative;
+	overflow: hidden;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m, 8px);
+	background: var(--background-primary);
+	/* One-finger drags pan the tree instead of scrolling the note. */
+	touch-action: none;
+	cursor: grab;
+	user-select: none;
+	-webkit-user-select: none;
+	-webkit-touch-callout: none;
+}
+
+.lineage-viewport.is-dragging {
+	cursor: grabbing;
+}
+
+.lineage-svg {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+.lineage-line {
+	fill: none;
+	stroke: var(--text-faint);
+	stroke-width: 1.2px;
+	vector-effect: non-scaling-stroke;
+}
+
+.lineage-name {
+	fill: var(--text-normal);
+	font-size: 13px;
+	font-family: var(--font-text);
+}
+
+.lineage-years {
+	fill: var(--text-muted);
+	font-size: 11px;
+	font-family: var(--font-text);
+	font-variant-numeric: tabular-nums;
+}
+
+.lineage-person[data-path] {
+	cursor: pointer;
+}
+
+.lineage-person[data-path]:hover .lineage-name {
+	fill: var(--link-color-hover, var(--interactive-accent));
+	text-decoration: underline;
+}
+
+.lineage-hit {
+	fill: transparent;
+}
+
+.lineage-seed-bg {
+	fill: var(--interactive-accent);
+	fill-opacity: 0.12;
+	stroke: var(--interactive-accent);
+	stroke-opacity: 0.5;
+	stroke-width: 1px;
+	vector-effect: non-scaling-stroke;
+}
+
+.lineage-person.is-seed .lineage-name {
+	fill: var(--interactive-accent);
+	font-weight: var(--font-semibold, 600);
+}
+
+.lineage-person.is-missing .lineage-name {
+	fill: var(--text-faint);
+	font-style: italic;
+}
+
+/* Toolbar */
+
+.lineage-toolbar {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	z-index: 2;
+	display: flex;
+	gap: 2px;
+	padding: 2px;
+	border-radius: var(--radius-s, 4px);
+	background: var(--background-primary);
+	opacity: 0.85;
+}
+
+.lineage-toolbar:hover {
+	opacity: 1;
+}
+
+.lineage-toolbar button.lineage-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	margin: 0;
+	background: transparent;
+	box-shadow: none;
+	border: none;
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.lineage-toolbar button.lineage-button:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+
+.lineage-toolbar button.lineage-button svg {
+	width: 16px;
+	height: 16px;
+}
+
+/* Messages under the view */
+
+.lineage-error {
+	padding: 0.75em 1em;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m, 8px);
+	color: var(--text-error);
+}
+
+.lineage-notice {
+	margin-top: 4px;
+	font-size: var(--font-ui-smaller, 12px);
+	color: var(--text-muted);
+}
+
+.lineage-warnings {
+	margin-top: 4px;
+	font-size: var(--font-ui-smaller, 12px);
+	color: var(--text-muted);
+}
+
+.lineage-warnings > summary {
+	cursor: pointer;
+	color: var(--text-warning, var(--text-muted));
+}
+
+.lineage-warnings ul {
+	margin: 4px 0 0;
+	padding-left: 1.4em;
+}
+
+.lineage-warnings li {
+	margin: 2px 0;
+}
+
+/* Leave room for Live Preview's own "edit this block" button in the corner. */
+.markdown-source-view.is-live-preview .lineage-toolbar {
+	right: 36px;
+}

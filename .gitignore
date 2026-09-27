@@ -1,0 +1,16 @@
+node_modules/
+main.js
+*.map
+data.json
+.DS_Store
+
+# Test vault: Obsidian workspace state and the locally installed build
+test-vault/.obsidian/*
+!test-vault/.obsidian/plugins/
+test-vault/.obsidian/plugins/*
+!test-vault/.obsidian/plugins/lineage-family-tree/
+test-vault/.obsidian/plugins/lineage-family-tree/*
+!test-vault/.obsidian/plugins/lineage-family-tree/.gitkeep
+test-vault/**/*family tree*.pdf
+test-vault/**/*family tree*.svg
+.test-build-*/

@@ -1,0 +1,10 @@
+{
+	"id": "lineage-family-tree",
+	"name": "Lineage Family Tree",
+	"version": "0.1.0",
+	"minAppVersion": "1.4.0",
+	"description": "Render family trees from Mother, Father and Spouse frontmatter with a lineage code block. Pan, zoom and export to PDF or SVG.",
+	"author": "gizmo73",
+	"authorUrl": "https://github.com/gizmo73",
+	"isDesktopOnly": false
+}

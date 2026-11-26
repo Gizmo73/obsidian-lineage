@@ -293,7 +293,7 @@ test("isotonic placement respects order and spacing", () => {
 });
 
 test("block options: seed forms, defaults and bad values", () => {
-	const d = { depth: 3, height: 500 };
+	const d = { depth: 3, height: 500, ancestors: 2, descendants: 1 };
 	assert.equal(parseBlockOptions("seed: [[Aelira Thornvale]]", d).seed, "Aelira Thornvale");
 	assert.equal(parseBlockOptions('seed: "[[People/Aelira Thornvale|Aelira]]"', d).seed, "People/Aelira Thornvale");
 	assert.equal(parseBlockOptions("seed: Aelira Thornvale", d).seed, "Aelira Thornvale");
@@ -302,4 +302,72 @@ test("block options: seed forms, defaults and bad values", () => {
 	assert.equal(o.depth, 0);
 	assert.equal(o.height, 500);
 	assert.equal(o.problems.length, 2);
+	assert.equal(o.generations, null, "hops unless ancestors or descendants is given");
+});
+
+test("block options: ancestors and descendants switch to generations", () => {
+	const d = { depth: 3, height: 500, ancestors: 2, descendants: 1 };
+	const both = parseBlockOptions("seed: [[A]]\nAncestors: 4\ndescendants: 0", d);
+	assert.deepEqual(both.generations, { ancestors: 4, descendants: 0 });
+	assert.deepEqual(both.problems, []);
+	assert.deepEqual(parseBlockOptions("ancestors: 3", d).generations, { ancestors: 3, descendants: 1 }, "missing one uses its default");
+	assert.deepEqual(parseBlockOptions("descendants: 5", d).generations, { ancestors: 2, descendants: 5 });
+	const bad = parseBlockOptions("ancestors: -1", d);
+	assert.deepEqual(bad.generations, { ancestors: 2, descendants: 1 });
+	assert.match(bad.problems[0], /ancestors must be a whole number of at least 0\. Using 2\./);
+	const mixed = parseBlockOptions("depth: 5\nancestors: 1", d);
+	assert.deepEqual(mixed.generations, { ancestors: 1, descendants: 1 });
+	assert.match(mixed.problems[0], /depth is ignored/);
+});
+
+test("generations: the band between the limits, siblings and cousins included", () => {
+	const brannoc = P("Brannoc Thornvale");
+	assert.deepEqual(names(buildTree(store, brannoc, { ancestors: 0, descendants: 0 })), [
+		"Brannoc Thornvale",
+		"Isolde Fenwick",
+		"Mirela Ashgrove",
+	]);
+	// Parents, siblings and their spouses, children and their spouses. Not grandparents, grandchildren or in-laws' parents.
+	assert.deepEqual(names(buildTree(store, brannoc, { ancestors: 1, descendants: 1 })), [
+		"Aelira Thornvale",
+		"Brannoc Thornvale",
+		"Corvin Thornvale",
+		"Garrick Thornvale",
+		"Isolde Fenwick",
+		"Liesel Thornvale",
+		"Mirela Ashgrove",
+		"Nessa Hale",
+		"Pell Thornvale",
+		"Sera Thornvale",
+		"Tobin Reed",
+		"Wren Thornvale",
+	]);
+	// Grandparents bring in an uncle (Edric) and a first cousin (Rowan), but nobody below Brannoc.
+	const up2 = names(buildTree(store, brannoc, { ancestors: 2, descendants: 0 }));
+	assert.deepEqual(up2, [
+		"Aelira Thornvale",
+		"Aldric Thornvale",
+		"Brannoc Thornvale",
+		"Brisa Hale",
+		"Corvin Thornvale",
+		"Edric Hale",
+		"Isolde Fenwick",
+		"Maren Hale",
+		"Mirela Ashgrove",
+		"Oswin Hale",
+		"Rowan Hale",
+		"Sera Thornvale",
+		"Tobin Reed",
+		"Wren Thornvale",
+		"Ysolde Thornvale",
+	]);
+});
+
+test("generations: Raised by counts as a parent, and missing notes are not followed", () => {
+	const finch = buildTree(store, "Edge cases/Finch Marsh.md", { ancestors: 1, descendants: 0 });
+	assert.deepEqual(names(finch), ["Ember Marsh", "Finch Marsh", "Oda Marsh"]);
+	assert.equal(finch.raisedEdges.length, 2);
+	// Mirela's father has no note: drawn as her parent, but his other children are not looked for.
+	const mirela = names(buildTree(store, P("Mirela Ashgrove"), { ancestors: 1, descendants: 0 }));
+	assert.deepEqual(mirela, ["Brannoc Thornvale", "Hadrian Ashgrove", "Mirela Ashgrove"]);
 });

@@ -1,7 +1,8 @@
 // Pure helpers for the Insert family tree command, kept free of Obsidian runtime imports so they run in Node tests.
+import type { Generations } from "./graph";
 
-/** Depths offered before anything is typed. */
-export const PRESET_DEPTHS = [0, 1, 2, 3, 4, 5, 6];
+/** Generation counts offered before anything is typed. */
+export const PRESET_COUNTS = [0, 1, 2, 3, 4, 5, 6];
 
 /** Whether a vault path is inside `folder` or one of its subfolders. A blank folder means the whole vault. */
 export function inFolder(path: string, folder: string): boolean {
@@ -23,18 +24,18 @@ export function seedCandidates<T extends { path: string; basename: string }>(fil
 }
 
 /**
- * Depths to list for what has been typed. Nothing typed gives the presets
+ * Counts to list for what has been typed. Nothing typed gives the presets
  * with the default first, so Enter picks it; a whole number gives just that.
  */
-export function depthChoices(query: string, defaultDepth: number): number[] {
+export function countChoices(query: string, defaultCount: number): number[] {
 	const q = query.trim();
 	if (q) return /^\d+$/.test(q) ? [parseInt(q, 10)] : [];
-	return [defaultDepth, ...PRESET_DEPTHS.filter((d) => d !== defaultDepth)];
+	return [defaultCount, ...PRESET_COUNTS.filter((d) => d !== defaultCount)];
 }
 
-/** The lineage block for a seed and depth. `seedLinktext` is what goes inside the [[ ]]. */
-export function formatBlock(seedLinktext: string, depth: number): string {
-	return ["```lineage", `seed: [[${seedLinktext}]]`, `depth: ${depth}`, "```"].join("\n");
+/** The lineage block for a seed and generation limits. `seedLinktext` is what goes inside the [[ ]]. */
+export function formatBlock(seedLinktext: string, { ancestors, descendants }: Generations): string {
+	return ["```lineage", `seed: [[${seedLinktext}]]`, `ancestors: ${ancestors}`, `descendants: ${descendants}`, "```"].join("\n");
 }
 
 /**

@@ -1,8 +1,8 @@
 import { App, Editor, FuzzyMatch, FuzzySuggestModal, normalizePath, Notice, renderResults, SuggestModal, TFile } from "obsidian";
-import { blockInsertion, depthChoices, formatBlock, seedCandidates } from "./insert";
+import { blockInsertion, countChoices, formatBlock, seedCandidates } from "./insert";
 import type LineagePlugin from "./main";
 
-/** Pick a seed note, then a depth, then insert a lineage block at the cursor. */
+/** Pick a seed note, then ancestors, then descendants, and insert a lineage block at the cursor. */
 export function insertFamilyTree(plugin: LineagePlugin, editor: Editor, sourcePath: string): void {
 	const { app, settings } = plugin;
 	const folder = settings.seedFolder ? normalizePath(settings.seedFolder) : "";
@@ -12,13 +12,16 @@ export function insertFamilyTree(plugin: LineagePlugin, editor: Editor, sourcePa
 		return;
 	}
 	new SeedModal(app, files, (seed) => {
-		new DepthModal(app, settings.defaultDepth, (depth) => {
-			const linktext = app.metadataCache.fileToLinktext(seed, sourcePath, true);
-			const from = editor.getCursor("from");
-			const text = blockInsertion(formatBlock(linktext, depth), editor.getLine(from.line).slice(0, from.ch));
-			editor.replaceRange(text, from, editor.getCursor("to"));
-			editor.setCursor(editor.offsetToPos(editor.posToOffset(from) + text.length));
-			editor.focus();
+		new CountModal(app, ANCESTORS, settings.defaultAncestors, (ancestors) => {
+			new CountModal(app, DESCENDANTS, settings.defaultDescendants, (descendants) => {
+				const linktext = app.metadataCache.fileToLinktext(seed, sourcePath, true);
+				const from = editor.getCursor("from");
+				const block = formatBlock(linktext, { ancestors, descendants });
+				const text = blockInsertion(block, editor.getLine(from.line).slice(0, from.ch));
+				editor.replaceRange(text, from, editor.getCursor("to"));
+				editor.setCursor(editor.offsetToPos(editor.posToOffset(from) + text.length));
+				editor.focus();
+			}).open();
 		}).open();
 	}).open();
 }
@@ -64,33 +67,57 @@ class SeedModal extends FuzzySuggestModal<TFile> {
 	}
 }
 
-class DepthModal extends SuggestModal<number> {
+interface CountKind {
+	placeholder: string;
+	label: (n: number) => string;
+	/** What a count brings in, for the first few. */
+	notes: string[];
+}
+
+const ANCESTORS: CountKind = {
+	placeholder: "Ancestors: generations up from the seed",
+	label: (n) => `${generations(n)} up`,
+	notes: ["Nobody above the seed", "Parents and siblings", "Grandparents, aunts, uncles and cousins", "Great-grandparents and second cousins"],
+};
+
+const DESCENDANTS: CountKind = {
+	placeholder: "Descendants: generations down from the seed",
+	label: (n) => `${generations(n)} down`,
+	notes: ["Nobody below the seed", "Children", "Grandchildren", "Great-grandchildren"],
+};
+
+function generations(n: number): string {
+	return n === 1 ? "1 generation" : `${n} generations`;
+}
+
+class CountModal extends SuggestModal<number> {
 	constructor(
 		app: App,
-		private defaultDepth: number,
-		private onPick: (depth: number) => void,
+		private kind: CountKind,
+		private defaultCount: number,
+		private onPick: (n: number) => void,
 	) {
 		super(app);
-		this.setPlaceholder("Depth: pick one or type a number");
+		this.setPlaceholder(kind.placeholder);
 		this.emptyStateText = "Type a whole number, 0 or more.";
 		this.setInstructions([
-			{ command: "↵", purpose: "insert" },
+			{ command: "↵", purpose: "choose" },
 			{ command: "esc", purpose: "cancel" },
 		]);
 	}
 
 	getSuggestions(query: string): number[] {
-		return depthChoices(query, this.defaultDepth);
+		return countChoices(query, this.defaultCount);
 	}
 
-	renderSuggestion(depth: number, el: HTMLElement): void {
-		const title = el.createDiv({ text: `Depth ${depth}` });
-		if (depth === this.defaultDepth) title.createSpan({ cls: "lineage-suggest-flair", text: "default" });
-		const note = depth === 0 ? "The seed only" : depth === 1 ? "Parents, children and spouses" : null;
+	renderSuggestion(n: number, el: HTMLElement): void {
+		const title = el.createDiv({ text: this.kind.label(n) });
+		if (n === this.defaultCount) title.createSpan({ cls: "lineage-suggest-flair", text: "default" });
+		const note = this.kind.notes[n];
 		if (note) el.createDiv({ cls: "lineage-suggest-note", text: note });
 	}
 
-	onChooseSuggestion(depth: number): void {
-		this.onPick(depth);
+	onChooseSuggestion(n: number): void {
+		this.onPick(n);
 	}
 }

@@ -49,7 +49,8 @@ Property names are configurable in settings and are matched ignoring case (`moth
 ````markdown
 ```lineage
 seed: [[Aelira Thornvale]]
-depth: 3
+ancestors: 2
+descendants: 1
 height: 500
 ```
 ````
@@ -57,14 +58,21 @@ height: 500
 | Option | Default | Meaning |
 |---|---|---|
 | `seed` | required | The starting person. Resolved like a normal link: by name, path or alias. |
-| `depth` | 3 | How many relationship hops to follow from the seed. Parent, child, spouse and raised-by links each count as one hop. `0` shows only the seed. |
+| `ancestors` | setting (2) | Generations up from the seed. See below. |
+| `descendants` | setting (2) | Generations down from the seed. See below. |
+| `depth` | setting (3) | How many relationship hops to follow from the seed, in any direction. Parent, child, spouse and raised-by links each count as one hop. `0` shows only the seed. Used only when the block has neither `ancestors` nor `descendants`. |
 | `height` | 500 | Height of the view in pixels. |
 
-If a child is in the tree, both of their parents are drawn even if the second parent is beyond the depth limit, so no child looks like they have one parent.
+There are two ways to say how far a tree reaches:
+
+- **Generations** (`ancestors` and `descendants`). The tree goes up `ancestors` generations through parents, then takes everyone descended from those ancestors, down to `descendants` generations below the seed. So `ancestors: 1` brings in siblings (and their children, if `descendants` allows), `ancestors: 2` adds aunts, uncles and first cousins, and so on. Everyone's spouses are drawn, but their own families are not followed. Whoever raised someone counts as a parent. If a block gives only one of the two, the other comes from settings.
+- **Hops** (`depth`). The original option, which spreads out in every direction at once, including through spouses to in-laws. Blocks written with `depth` keep working as before. If a block has `depth` as well as `ancestors` or `descendants`, `depth` is ignored and a warning says so.
+
+If a child is in the tree, both of their parents are drawn even if the second parent is beyond the limits, so no child looks like they have one parent.
 
 ### Insert family tree command
 
-Run **Lineage Family Tree: Insert family tree** from the command palette while editing a note. Pick the seed from a list of notes, then a depth (your default depth is listed first, or type any whole number), and the block is inserted at the cursor on its own lines, replacing any selection. The note you are editing is at the top of the seed list, so a person's own tree is quick to add.
+Run **Lineage Family Tree: Insert family tree** from the command palette while editing a note. Pick the seed from a list of notes, then how many generations up and how many down (your defaults are listed first, or type any whole number), and the block is inserted at the cursor on its own lines, replacing any selection. The note you are editing is at the top of the seed list, so a person's own tree is quick to add.
 
 To keep places, sessions and the like out of the seed list, set **People folder** in settings. The list then shows only notes in that folder and its subfolders. It only affects this command; trees still follow links to people anywhere in the vault.
 
@@ -103,7 +111,7 @@ PDF page size can be **Fit to tree** (one page exactly the size of the tree) or 
 
 - **The `seed` link is not a real link to Obsidian.** Obsidian does not index links inside code blocks, so the seed does not appear in backlinks or the graph, and it is **not updated when you rename the note**. After a rename, edit the block (it shows "Seed note not found" until you do).
 - **PDF text uses the built-in Helvetica font**, which keeps text selectable and the file small but only covers Western European characters. Names in other scripts (for example Cyrillic, Greek, or Chinese) will not print correctly in the PDF. The SVG export is fine.
-- Trees over 300 people are drawn, with a note under the view suggesting a lower depth.
+- Trees over 300 people are drawn, with a note under the view suggesting fewer generations or a lower depth.
 - Relationships cannot be edited from the tree, and people cannot be dragged.
 
 ## Development

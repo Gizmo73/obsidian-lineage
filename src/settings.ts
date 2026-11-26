@@ -6,6 +6,8 @@ import { PropertyNames } from "./store";
 export interface LineageSettings extends PropertyNames {
 	defaultDepth: number;
 	defaultHeight: number;
+	defaultAncestors: number;
+	defaultDescendants: number;
 	/** Blank means alongside the note that holds the code block. */
 	exportFolder: string;
 	pdfPageSize: PdfPageSize;
@@ -23,6 +25,8 @@ export const DEFAULT_SETTINGS: LineageSettings = {
 	died: "Died",
 	defaultDepth: 3,
 	defaultHeight: 500,
+	defaultAncestors: 2,
+	defaultDescendants: 2,
 	exportFolder: "",
 	pdfPageSize: "fit",
 	seedFolder: "",
@@ -78,19 +82,35 @@ export class LineageSettingTab extends PluginSettingTab {
 		}
 
 		new Setting(containerEl).setName("View").setHeading();
-		new Setting(containerEl)
-			.setName("Default depth")
-			.setDesc("Relationship hops from the seed when a block has no depth option.")
-			.addText((t) =>
-				t
-					.setPlaceholder(String(DEFAULT_SETTINGS.defaultDepth))
-					.setValue(String(this.plugin.settings.defaultDepth))
-					.onChange(async (v) => {
-						const n = parseInt(v, 10);
-						this.plugin.settings.defaultDepth = Number.isFinite(n) && n >= 0 ? n : DEFAULT_SETTINGS.defaultDepth;
-						await this.plugin.saveSettings(false);
-					}),
-			);
+		const count = (key: "defaultDepth" | "defaultAncestors" | "defaultDescendants", name: string, desc: string) =>
+			new Setting(containerEl)
+				.setName(name)
+				.setDesc(desc)
+				.addText((t) =>
+					t
+						.setPlaceholder(String(DEFAULT_SETTINGS[key]))
+						.setValue(String(this.plugin.settings[key]))
+						.onChange(async (v) => {
+							const n = parseInt(v, 10);
+							this.plugin.settings[key] = Number.isFinite(n) && n >= 0 ? n : DEFAULT_SETTINGS[key];
+							await this.plugin.saveSettings(false);
+						}),
+				);
+		count(
+			"defaultAncestors",
+			"Default ancestors",
+			"Generations above the seed when a block gives descendants but not ancestors. Also the first choice in Insert family tree.",
+		);
+		count(
+			"defaultDescendants",
+			"Default descendants",
+			"Generations below the seed when a block gives ancestors but not descendants. Also the first choice in Insert family tree.",
+		);
+		count(
+			"defaultDepth",
+			"Default depth",
+			"Relationship hops from the seed, in any direction, for blocks with none of depth, ancestors or descendants.",
+		);
 		new Setting(containerEl)
 			.setName("Default view height")
 			.setDesc("Height in pixels when a block has no height option.")

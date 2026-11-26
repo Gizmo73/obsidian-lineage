@@ -33,6 +33,17 @@ depth: 10
 height: 650
 ```
 
+## Generations: 2 up, 1 down
+
+Grandparents, an uncle and a cousin above and beside Brannoc, and his children below.
+
+```lineage
+seed: [[Brannoc Thornvale]]
+ancestors: 2
+descendants: 1
+height: 420
+```
+
 ## Seed by alias
 
 ```lineage

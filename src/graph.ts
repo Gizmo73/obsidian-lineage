@@ -1,43 +1,36 @@
 import { GraphSource, isMissingId, LineageWarning, PersonId, SpousePair, Tree } from "./types";
 
-/**
- * Breadth-first walk from the seed. Parent, child and spouse edges each cost
- * one hop. Missing notes are shown but never expanded.
- */
-export function buildTree(source: GraphSource, seed: PersonId, depth: number): Tree {
-	const dist = new Map<PersonId, number>([[seed, 0]]);
-	const queue: PersonId[] = [seed];
+/** Generation limits relative to the seed: how many up, and how many down. */
+export interface Generations {
+	ancestors: number;
+	descendants: number;
+}
 
-	while (queue.length) {
-		const id = queue.shift() as PersonId;
-		const d = dist.get(id) as number;
-		if (d >= depth || isMissingId(id)) continue;
-		for (const n of neighbours(source, id)) {
-			if (!dist.has(n)) {
-				dist.set(n, d + 1);
-				queue.push(n);
-			}
-		}
-	}
+/** How far a tree reaches: relationship hops in any direction, or generations up and down. */
+export type Reach = number | Generations;
+
+/** Collect the people to draw from the seed, then the edges between them. */
+export function buildTree(source: GraphSource, seed: PersonId, reach: Reach): Tree {
+	const included = typeof reach === "number" ? byHops(source, seed, reach) : byGenerations(source, seed, reach);
 
 	// A child drawn with one parent while the other parent exists would look
-	// wrong, so pull in co-parents even past the depth limit (not traversed).
+	// wrong, so pull in co-parents even past the limits (not traversed).
 	let added = true;
 	while (added) {
 		added = false;
-		for (const id of Array.from(dist.keys())) {
+		for (const id of Array.from(included)) {
 			const ps = source.parents(id);
-			if (ps.length < 2 || !ps.some((p) => dist.has(p))) continue;
+			if (ps.length < 2 || !ps.some((p) => included.has(p))) continue;
 			for (const p of ps) {
-				if (!dist.has(p)) {
-					dist.set(p, Infinity);
+				if (!included.has(p)) {
+					included.add(p);
 					added = true;
 				}
 			}
 		}
 	}
 
-	const persons = new Map(Array.from(dist.keys()).map((id) => [id, source.info(id)]));
+	const persons = new Map(Array.from(included).map((id) => [id, source.info(id)]));
 	const warnings: LineageWarning[] = [];
 	for (const id of persons.keys()) warnings.push(...source.issues(id));
 
@@ -83,6 +76,77 @@ export function buildTree(source: GraphSource, seed: PersonId, depth: number): T
 	raisedEdges = raisedEdges.filter(([r, c]) => kept.has(`${r}\u0000${c}`));
 
 	return { seed, persons, parentEdges, raisedEdges, spousePairs, warnings: dedupe(warnings) };
+}
+
+/**
+ * Breadth-first walk from the seed. Parent, child, spouse and raised-by edges
+ * each cost one hop. Missing notes are shown but never expanded.
+ */
+function byHops(source: GraphSource, seed: PersonId, depth: number): Set<PersonId> {
+	const dist = new Map<PersonId, number>([[seed, 0]]);
+	const queue: PersonId[] = [seed];
+	while (queue.length) {
+		const id = queue.shift() as PersonId;
+		const d = dist.get(id) as number;
+		if (d >= depth || isMissingId(id)) continue;
+		for (const n of neighbours(source, id)) {
+			if (!dist.has(n)) {
+				dist.set(n, d + 1);
+				queue.push(n);
+			}
+		}
+	}
+	return new Set(dist.keys());
+}
+
+/**
+ * Whole generations: the seed's ancestors up to `ancestors` generations, then
+ * everyone descended from them down to `descendants` generations below the
+ * seed, so siblings, aunts, uncles and cousins in that band are included.
+ * Spouses of everyone found are drawn but not followed. Whoever raised
+ * someone counts as a parent here. Missing notes are shown but never expanded.
+ */
+function byGenerations(source: GraphSource, seed: PersonId, { ancestors, descendants }: Generations): Set<PersonId> {
+	// Generation relative to the seed: negative above, positive below.
+	const up = new Map<PersonId, number>([[seed, 0]]);
+	let frontier: PersonId[] = [seed];
+	for (let g = -1; g >= -ancestors && frontier.length; g--) {
+		const next: PersonId[] = [];
+		for (const id of frontier) {
+			if (isMissingId(id)) continue;
+			for (const p of [...source.parents(id), ...source.raisedBy(id)]) {
+				if (!up.has(p)) {
+					up.set(p, g);
+					next.push(p);
+				}
+			}
+		}
+		frontier = next;
+	}
+
+	// Walk down from the oldest generation first, so anyone reachable by two
+	// routes is placed by the higher one and keeps the most of their line.
+	const byGen = new Map<number, PersonId[]>();
+	const add = (g: number, id: PersonId) => {
+		const list = byGen.get(g);
+		if (list) list.push(id);
+		else byGen.set(g, [id]);
+	};
+	for (const [id, g] of up) add(g, id);
+	const found = new Set<PersonId>();
+	for (let g = -ancestors; g <= descendants; g++) {
+		for (const id of byGen.get(g) ?? []) {
+			if (found.has(id)) continue;
+			found.add(id);
+			if (g === descendants || isMissingId(id)) continue;
+			for (const c of [...source.children(id), ...source.raisedChildren(id)]) if (!found.has(c)) add(g + 1, c);
+		}
+	}
+
+	for (const id of Array.from(found)) {
+		if (!isMissingId(id)) for (const s of source.spouses(id)) found.add(s);
+	}
+	return found;
 }
 
 function neighbours(source: GraphSource, id: PersonId): PersonId[] {

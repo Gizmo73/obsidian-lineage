@@ -37,6 +37,11 @@
 	vector-effect: non-scaling-stroke;
 }
 
+/* Co-parents with no declared marriage. Same pattern as PARTNER_DASH in src/svg.ts. */
+.lineage-partner {
+	stroke-dasharray: 4 3;
+}
+
 .lineage-name {
 	fill: var(--text-normal);
 	font-size: 13px;

@@ -4,6 +4,9 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 
 export const EXPORT_FONT = "Helvetica, Arial, sans-serif";
 
+/** Dash pattern for co-parents who are not declared spouses. Keep in step with styles.css. */
+const PARTNER_DASH = "4 3";
+
 function el<K extends keyof SVGElementTagNameMap>(
 	doc: Document,
 	tag: K,
@@ -30,6 +33,7 @@ export function buildViewSvg(doc: Document, layout: Layout, seed: string): { svg
 
 	stage.appendChild(el(doc, "path", { class: "lineage-line lineage-descent", d: pathData(layout.descentLines) }));
 	stage.appendChild(el(doc, "path", { class: "lineage-line lineage-marriage", d: pathData(layout.marriageLines) }));
+	stage.appendChild(el(doc, "path", { class: "lineage-line lineage-partner", d: pathData(layout.partnerLines) }));
 
 	for (const n of layout.nodes) {
 		const cls = ["lineage-person"];
@@ -93,6 +97,9 @@ export function buildExportSvg(doc: Document, layout: Layout): SVGSVGElement {
 	const lineAttrs = { fill: "none", stroke: "#000000", "stroke-width": 1, "stroke-linecap": "square" };
 	svg.appendChild(el(doc, "path", { ...lineAttrs, d: pathData(layout.descentLines) }));
 	svg.appendChild(el(doc, "path", { ...lineAttrs, d: pathData(layout.marriageLines) }));
+	svg.appendChild(
+		el(doc, "path", { ...lineAttrs, "stroke-linecap": "butt", "stroke-dasharray": PARTNER_DASH, d: pathData(layout.partnerLines) }),
+	);
 
 	for (const n of layout.nodes) {
 		const name = el(doc, "text", {

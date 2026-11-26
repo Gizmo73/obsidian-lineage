@@ -134,6 +134,22 @@ test("layout keeps parents above children, partners level, and no overlaps", () 
 	}
 });
 
+test("declared spouses get a marriage line; unmarried co-parents a partner line", () => {
+	const married = layoutTree(buildTree(store, P("Brannoc Thornvale"), 1), measure);
+	assert.ok(married.marriageLines.length > 0, "Brannoc's marriages are drawn solid");
+	assert.equal(married.partnerLines.length, 0, "no dashed lines when every couple is married");
+
+	// One-sided declaration: only Aldric lists Ysolde, and that alone makes them married.
+	const oneSided = layoutTree(buildTree(store, P("Ysolde Thornvale"), 1), measure);
+	assert.ok(oneSided.marriageLines.length > 0);
+	assert.equal(oneSided.partnerLines.length, 0);
+
+	const unwed = layoutTree(buildTree(store, "Edge cases/Ember Marsh.md", 1), measure);
+	assert.equal(unwed.marriageLines.length, 0, "Lysa and Tavin are not spouses");
+	assert.equal(unwed.partnerLines.length, 1, "they are joined by one dashed line");
+	assert.ok(unwed.descentLines.length > 0, "Ember still hangs from her parents");
+});
+
 test("siblings are ordered by birth year, unknown last", () => {
 	const t = buildTree(store, P("Corvin Thornvale"), 1);
 	const layout = layoutTree(t, measure);

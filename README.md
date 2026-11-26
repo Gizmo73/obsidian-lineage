@@ -3,7 +3,8 @@
 Data-driven family trees for Obsidian. Put a `lineage` code block in any note and it draws a family tree built entirely from `Mother`, `Father` and `Spouse` frontmatter on your person notes. Nothing is positioned by hand: add a note with a `Mother` property and every open tree that includes her updates itself.
 
 - Children and siblings are derived automatically.
-- Spouses are shown as people in the tree, joined by a marriage line. Remarriages get one line per union.
+- Spouses are shown as people in the tree, joined by a solid marriage line. Remarriages get one line per union.
+- Parents who share a child but are not listed as each other's `Spouse` are joined by a dashed line instead, the usual convention for an unmarried couple.
 - Pan and zoom inside the note, on desktop and on iOS/Android.
 - Export a clean black-on-white PDF or SVG straight into your vault (works on mobile).
 
@@ -31,7 +32,7 @@ Died: 1442
 | Property | Value |
 |---|---|
 | `Mother`, `Father` | One wikilink each. Optional. |
-| `Spouse` | A wikilink or a list of them. A marriage declared on one side only still counts. |
+| `Spouse` | A wikilink or a list of them. A marriage declared on one side only still counts. Co-parents without one are drawn with a dashed line. |
 | `Born`, `Died` | A whole year. Anything else is treated as unknown and flagged. |
 
 Property names are configurable in settings and are matched ignoring case (`mother`, `Mother`, `MOTHER`). Only frontmatter is read; Dataview inline fields are not.
@@ -98,7 +99,7 @@ npm test        # unit, fuzz and index tests (Node)
 npm run build   # typecheck and production build
 ```
 
-To try it, copy `main.js`, `manifest.json` and `styles.css` into `test-vault/.obsidian/plugins/lineage-family-tree/`, open `test-vault` as a vault, enable the plugin and open **Lineage demo**. The test vault covers three generations, a remarriage with half siblings, an intermarriage, a one-sided marriage, a missing note, an ancestry cycle, mixed-case properties, and notes with no years, birth only and death only.
+To try it, copy `main.js`, `manifest.json` and `styles.css` into `test-vault/.obsidian/plugins/lineage-family-tree/`, open `test-vault` as a vault, enable the plugin and open **Lineage demo**. The test vault covers three generations, a remarriage with half siblings, an intermarriage, a one-sided marriage, unmarried co-parents, a missing note, an ancestry cycle, mixed-case properties, and notes with no years, birth only and death only.
 
 `scripts/harness/` has headless-Chromium checks used during development: `run.mjs` renders the demo trees to PNG and PDF, and `panzoom.mjs` drives pan, pinch and wheel input.
 

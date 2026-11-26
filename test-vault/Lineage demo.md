@@ -41,6 +41,14 @@ depth: 1
 height: 300
 ```
 
+## Unmarried co-parents (dashed line)
+
+```lineage
+seed: [[Ember Marsh]]
+depth: 1
+height: 200
+```
+
 ## Ancestry cycle and self references
 
 ```lineage

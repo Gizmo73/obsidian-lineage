@@ -37,7 +37,10 @@ export interface LayoutNode {
 
 export interface Layout {
 	nodes: LayoutNode[];
+	/** Joins partners declared as spouses (on either note). Drawn solid. */
 	marriageLines: Polyline[];
+	/** Joins co-parents with no declared marriage. Drawn dashed. */
+	partnerLines: Polyline[];
 	descentLines: Polyline[];
 	width: number;
 	height: number;
@@ -50,6 +53,8 @@ interface Union {
 	key: string;
 	partners: PersonId[];
 	children: PersonId[];
+	/** True when the partners are declared spouses, false for co-parents only. */
+	married: boolean;
 }
 
 interface Block {
@@ -94,16 +99,18 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 
 	// ---- Unions: declared marriages plus every pair of co-parents. ----
 	const unions = new Map<string, Union>();
-	const unionOf = (partners: PersonId[]): Union => {
+	const unionOf = (partners: PersonId[], married = false): Union => {
 		const key = partners.length === 2 ? pairKey(partners[0], partners[1]) : `solo\u0000${partners[0]}`;
 		let u = unions.get(key);
 		if (!u) {
-			u = { key, partners: partners.slice().sort(), children: [] };
+			u = { key, partners: partners.slice().sort(), children: [], married };
 			unions.set(key, u);
+		} else if (married) {
+			u.married = true;
 		}
 		return u;
 	};
-	for (const [a, b] of tree.spousePairs) unionOf([a, b]);
+	for (const [a, b] of tree.spousePairs) unionOf([a, b], true);
 	const parentUnion = new Map<PersonId, Union>();
 	for (const id of ids) {
 		const ps = parentsOf.get(id) as PersonId[];
@@ -373,6 +380,7 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 	// ---- Connectors. ----
 	// Each line remembers its union so crossings between different unions can be bridged.
 	const marriageLines: OwnedLine[] = [];
+	const partnerLines: OwnedLine[] = [];
 	const descentLines: OwnedLine[] = [];
 	const unionPoint = new Map<Union, Point>();
 	const bracketTracks = new Map<number, Array<[number, number]>>();
@@ -386,12 +394,14 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 		}
 		const adjPair = adjacentPartners(u);
 		const [a, b] = u.partners;
+		// Declared marriages get a solid line; co-parents who never married a dashed one.
+		const joinLines = u.married ? marriageLines : partnerLines;
 		if (adjPair) {
 			const [l, r] = adjPair;
 			const y = layerTop(gen.get(l) as number) + M.nameMid;
 			const x1 = (x.get(l) as number) + (width.get(l) as number) / 2 + 4;
 			const x2 = (x.get(r) as number) - (width.get(r) as number) / 2 - 4;
-			marriageLines.push({ owner: u.key, line: [
+			joinLines.push({ owner: u.key, line: [
 				[x1, y],
 				[x2, y],
 			] });
@@ -404,7 +414,7 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 			const rx = x.get(r) as number;
 			const track = claimTrack(bracketTracks, g, lx, rx);
 			const y = layerTop(g) + M.nodeHeight + 6 + track * M.trackStep;
-			marriageLines.push({ owner: u.key, line: [
+			joinLines.push({ owner: u.key, line: [
 				[lx, nodeBottom(l) + 3],
 				[lx, y],
 				[rx, y],
@@ -420,7 +430,7 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 			const lw = (width.get(low) as number) / 2 + 4;
 			const y = layerTop(gen.get(low) as number) + M.nameMid;
 			const endX = ux < lx ? lx - lw : lx + lw;
-			marriageLines.push({ owner: u.key, line: [
+			joinLines.push({ owner: u.key, line: [
 				[ux, nodeBottom(up) + 3],
 				[ux, y],
 				[endX, y],
@@ -480,12 +490,14 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 	}));
 
 	let bottom = layerTop(maxGen) + M.nodeHeight;
-	for (const { line } of marriageLines) for (const [, y] of line) bottom = Math.max(bottom, y);
+	for (const { line } of [...marriageLines, ...partnerLines]) for (const [, y] of line) bottom = Math.max(bottom, y);
 
+	const allLines = [...marriageLines, ...partnerLines, ...descentLines];
 	return {
 		nodes,
-		marriageLines: bridgeCrossings(marriageLines, [...marriageLines, ...descentLines]),
-		descentLines: bridgeCrossings(descentLines, [...marriageLines, ...descentLines]),
+		marriageLines: bridgeCrossings(marriageLines, allLines),
+		partnerLines: bridgeCrossings(partnerLines, allLines),
+		descentLines: bridgeCrossings(descentLines, allLines),
 		width: maxX - minX + 2 * M.margin,
 		height: bottom + M.margin,
 		warnings,

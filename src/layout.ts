@@ -42,9 +42,19 @@ export interface Layout {
 	/** Joins co-parents with no declared marriage. Drawn dashed. */
 	partnerLines: Polyline[];
 	descentLines: Polyline[];
+	/** "m. YYYY" above marriage lines that have a known year. */
+	marriageLabels: MarriageLabel[];
 	width: number;
 	height: number;
 	warnings: LineageWarning[];
+}
+
+export interface MarriageLabel {
+	text: string;
+	/** Text anchor point and baseline. */
+	x: number;
+	y: number;
+	anchor: "middle" | "start";
 }
 
 export type Measure = (text: string, kind: "name" | "years") => number;
@@ -55,6 +65,18 @@ interface Union {
 	children: PersonId[];
 	/** True when the partners are declared spouses, false for co-parents only. */
 	married: boolean;
+	/** Marriage year, when either spouse's note gives one. */
+	year: number | null;
+}
+
+/**
+ * Space left either side of a marriage label. The seed's highlight and the
+ * hover box reach 6px past a name, so this clears them with room to spare.
+ */
+const LABEL_PAD = 10;
+
+function marriageText(u: Union | undefined): string | null {
+	return u && u.married && u.year !== null ? `m. ${u.year}` : null;
 }
 
 interface Block {
@@ -103,14 +125,14 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 		const key = partners.length === 2 ? pairKey(partners[0], partners[1]) : `solo\u0000${partners[0]}`;
 		let u = unions.get(key);
 		if (!u) {
-			u = { key, partners: partners.slice().sort(), children: [], married };
+			u = { key, partners: partners.slice().sort(), children: [], married, year: null };
 			unions.set(key, u);
 		} else if (married) {
 			u.married = true;
 		}
 		return u;
 	};
-	for (const [a, b] of tree.spousePairs) unionOf([a, b], true);
+	for (const [a, b, year] of tree.spousePairs) unionOf([a, b], true).year = year;
 	const parentUnion = new Map<PersonId, Union>();
 	for (const id of ids) {
 		const ps = parentsOf.get(id) as PersonId[];
@@ -263,17 +285,23 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 		years.set(id, y);
 		width.set(id, Math.max(measure(p.name, "name"), y ? measure(y, "years") : 0, 8));
 	}
+	// Spouses side by side sit further apart when their line carries "m. YYYY".
+	const coupleGapBetween = (a: PersonId, b: PersonId): number => {
+		const text = marriageText(unions.get(pairKey(a, b)));
+		return text ? Math.max(M.coupleGap, measure(text, "years") + 2 * LABEL_PAD) : M.coupleGap;
+	};
 	const x = new Map<PersonId, number>();
 	for (const layer of layers) {
 		let cursor = 0;
 		layer.forEach((b, i) => {
 			let off = 0;
-			b.offsets = b.members.map((m) => {
+			b.offsets = b.members.map((m, k) => {
 				const o = off;
-				off += (width.get(m) as number) + M.coupleGap;
+				off += width.get(m) as number;
+				if (k < b.members.length - 1) off += coupleGapBetween(m, b.members[k + 1]);
 				return o;
 			});
-			b.width = off - M.coupleGap;
+			b.width = off;
 			if (i > 0) cursor += gapBetween(layer[i - 1], b, parentUnion);
 			b.left = cursor;
 			cursor += b.width;
@@ -382,6 +410,7 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 	const marriageLines: OwnedLine[] = [];
 	const partnerLines: OwnedLine[] = [];
 	const descentLines: OwnedLine[] = [];
+	const marriageLabels: MarriageLabel[] = [];
 	const unionPoint = new Map<Union, Point>();
 	const bracketTracks = new Map<number, Array<[number, number]>>();
 
@@ -396,6 +425,7 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 		const [a, b] = u.partners;
 		// Declared marriages get a solid line; co-parents who never married a dashed one.
 		const joinLines = u.married ? marriageLines : partnerLines;
+		const label = marriageText(u);
 		if (adjPair) {
 			const [l, r] = adjPair;
 			const y = layerTop(gen.get(l) as number) + M.nameMid;
@@ -406,6 +436,8 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 				[x2, y],
 			] });
 			unionPoint.set(u, [(x1 + x2) / 2, y]);
+			// Above the line, in the gap the blocks pass widened for it.
+			if (label) marriageLabels.push({ text: label, x: (x1 + x2) / 2, y: y - 3, anchor: "middle" });
 		} else if (gen.get(a) === gen.get(b)) {
 			// Partners who are not neighbours: a bracket under both names.
 			const g = gen.get(a) as number;
@@ -421,6 +453,9 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 				[rx, nodeBottom(r) + 3],
 			] });
 			unionPoint.set(u, [(lx + rx) / 2, y]);
+			// Other people's names sit above a bracket, so the year goes just under it,
+			// beside the drop to the children rather than across it.
+			if (label) marriageLabels.push({ text: label, x: (lx + rx) / 2 + 4, y: y + M.yearsSize, anchor: "start" });
 		} else {
 			// Partners in different generations (inconsistent data): run a line
 			// down from the upper partner and across into the lower one.
@@ -491,6 +526,11 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 
 	let bottom = layerTop(maxGen) + M.nodeHeight;
 	for (const { line } of [...marriageLines, ...partnerLines]) for (const [, y] of line) bottom = Math.max(bottom, y);
+	let right = maxX - minX + M.margin;
+	for (const l of marriageLabels) {
+		bottom = Math.max(bottom, l.y + 3);
+		if (l.anchor === "start") right = Math.max(right, l.x + measure(l.text, "years"));
+	}
 
 	const allLines = [...marriageLines, ...partnerLines, ...descentLines];
 	return {
@@ -498,7 +538,8 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 		marriageLines: bridgeCrossings(marriageLines, allLines),
 		partnerLines: bridgeCrossings(partnerLines, allLines),
 		descentLines: bridgeCrossings(descentLines, allLines),
-		width: maxX - minX + 2 * M.margin,
+		marriageLabels,
+		width: right + M.margin,
 		height: bottom + M.margin,
 		warnings,
 	};

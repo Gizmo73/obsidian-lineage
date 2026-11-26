@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS: LineageSettings = {
 	mother: "Mother",
 	father: "Father",
 	spouse: "Spouse",
+	married: "Married",
 	born: "Born",
 	died: "Died",
 	defaultDepth: 3,
@@ -44,6 +45,11 @@ export class LineageSettingTab extends PluginSettingTab {
 			["mother", "Mother", "A single link to the mother's note."],
 			["father", "Father", "A single link to the father's note."],
 			["spouse", "Spouse", "A link, or a list of links for remarriage."],
+			[
+				"married",
+				"Married",
+				"Year of marriage. For several spouses, a list of years in the same order as Spouse; use ? for an unknown year.",
+			],
 			["born", "Born", "Year of birth, as a whole number."],
 			["died", "Died", "Year of death, as a whole number."],
 		];

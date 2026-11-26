@@ -150,6 +150,60 @@ test("declared spouses get a marriage line; unmarried co-parents a partner line"
 	assert.ok(unwed.descentLines.length > 0, "Ember still hangs from her parents");
 });
 
+test("Married years pair with spouses in order; ? and blanks are unknown", () => {
+	const resolve = (l: string) => ({ path: `${l}.md` });
+	const rec = (fm: Record<string, unknown>) => parseRecord("A.md", fm, DEFAULT_PROPS, resolve);
+
+	assert.deepEqual(rec({ Spouse: "[[B]]", Married: 1355 }).marriedYears, [["B.md", 1355]]);
+	assert.deepEqual(rec({ Spouse: "[[B]]", married: "1355" }).marriedYears, [["B.md", 1355]], "string year, any case");
+	assert.deepEqual(
+		rec({ Spouse: ["[[B]]", "[[C]]", "[[D]]"], Married: ["?", 1418, null] }).marriedYears,
+		[["C.md", 1418]],
+		"unknown first and third years",
+	);
+	assert.deepEqual(rec({ Spouse: ["[[B]]", "[[C]]"] }).marriedYears, [], "no Married at all");
+
+	const bad = rec({ Spouse: "[[B]]", Married: "spring 1355" });
+	assert.deepEqual(bad.marriedYears, []);
+	assert.match(bad.issues[0].message, /not a whole year/);
+
+	const extra = rec({ Spouse: "[[B]]", Married: [1355, 1360] });
+	assert.deepEqual(extra.marriedYears, [["B.md", 1355]]);
+	assert.match(extra.issues[0].message, /2 Married years but 1 spouse links/);
+});
+
+test("a marriage year can come from either spouse; disagreements are warned", () => {
+	const resolve = (l: string) => ({ path: `${l}.md` });
+	const s = new RelationshipStore();
+	s.set(parseRecord("A.md", { Spouse: "[[B]]" }, DEFAULT_PROPS, resolve));
+	s.set(parseRecord("B.md", { Spouse: "[[A]]", Married: 1355 }, DEFAULT_PROPS, resolve));
+	assert.deepEqual(buildTree(s, "A.md", 1).spousePairs, [["A.md", "B.md", 1355]]);
+
+	s.set(parseRecord("A.md", { Spouse: "[[B]]", Married: 1356 }, DEFAULT_PROPS, resolve));
+	const t = buildTree(s, "A.md", 1);
+	assert.equal(t.spousePairs[0][2], 1356);
+	assert.match(t.warnings.map((w) => w.message).join("\n"), /different marriage years on their notes \(1356 and 1355\)/);
+});
+
+test("marriage labels sit above the line, in a gap wide enough for them", () => {
+	const layout = layoutTree(buildTree(store, P("Brannoc Thornvale"), 1), measure);
+	assert.deepEqual(layout.marriageLabels.map((l) => l.text).sort(), ["m. 1380", "m. 1407", "m. 1418"]);
+	for (const l of layout.marriageLabels) {
+		const w = measure(l.text, "years");
+		const row = layout.nodes.filter((n) => Math.abs(n.y - (l.y - METRICS.nameMid + 3)) < 0.01);
+		assert.ok(row.length > 0, `${l.text} sits on a row of names`);
+		for (const n of row) {
+			const clear = l.x + w / 2 <= n.x - n.width / 2 || l.x - w / 2 >= n.x + n.width / 2;
+			assert.ok(clear, `${l.text} does not overlap ${n.info.name}`);
+		}
+	}
+
+	// No year, no label: Aldric and Ysolde are married with no date given.
+	assert.equal(layoutTree(buildTree(store, P("Ysolde Thornvale"), 1), measure).marriageLabels.length, 0);
+	// Unmarried co-parents never get one.
+	assert.equal(layoutTree(buildTree(store, "Edge cases/Ember Marsh.md", 1), measure).marriageLabels.length, 0);
+});
+
 test("siblings are ordered by birth year, unknown last", () => {
 	const t = buildTree(store, P("Corvin Thornvale"), 1);
 	const layout = layoutTree(t, measure);

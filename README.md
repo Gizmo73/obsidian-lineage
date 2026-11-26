@@ -24,6 +24,10 @@ Mother: "[[Aelira Thornvale]]"
 Father: "[[Corvin Thornvale]]"
 Spouse:
   - "[[Mirela Ashgrove]]"
+  - "[[Isolde Fenwick]]"
+Married:
+  - 1407
+  - 1418
 Born: 1385
 Died: 1442
 ---
@@ -33,6 +37,7 @@ Died: 1442
 |---|---|
 | `Mother`, `Father` | One wikilink each. Optional. |
 | `Spouse` | A wikilink or a list of them. A marriage declared on one side only still counts. Co-parents without one are drawn with a dashed line. |
+| `Married` | Optional. The year of marriage, shown as "m. 1407" above the marriage line. With several spouses, give a list in the same order as `Spouse`; use `?` for a year you don't know. Either spouse's note can hold it. A missing year just means the date is unknown, not that there was no marriage. |
 | `Born`, `Died` | A whole year. Anything else is treated as unknown and flagged. |
 
 Property names are configurable in settings and are matched ignoring case (`mother`, `Mother`, `MOTHER`). Only frontmatter is read; Dataview inline fields are not.
@@ -73,6 +78,8 @@ Problems in the data never break the view. They are listed in a collapsible line
 - people listed as their own parent or spouse
 - ancestry loops (someone recorded as their own ancestor); one link in the loop is ignored so the tree can still be drawn
 - years that are not whole numbers
+- more `Married` years than spouse links (years are matched in order, so the list is probably out of step)
+- spouses whose notes give different marriage years
 - partners who cannot share a generation because one descends from the other
 
 Plain text in `Mother`/`Father`/`Spouse` (not a `[[link]]`) is ignored.

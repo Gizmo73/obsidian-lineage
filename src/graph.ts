@@ -1,4 +1,4 @@
-import { GraphSource, isMissingId, LineageWarning, PersonId, Tree } from "./types";
+import { GraphSource, isMissingId, LineageWarning, PersonId, SpousePair, Tree } from "./types";
 
 /**
  * Breadth-first walk from the seed. Parent, child and spouse edges each cost
@@ -42,7 +42,7 @@ export function buildTree(source: GraphSource, seed: PersonId, depth: number): T
 	for (const id of persons.keys()) warnings.push(...source.issues(id));
 
 	let parentEdges: [PersonId, PersonId][] = [];
-	const spousePairs: [PersonId, PersonId][] = [];
+	const spousePairs: SpousePair[] = [];
 	const seenPair = new Set<string>();
 	for (const id of persons.keys()) {
 		for (const p of source.parents(id)) {
@@ -53,7 +53,19 @@ export function buildTree(source: GraphSource, seed: PersonId, depth: number): T
 			const key = pairKey(id, s);
 			if (seenPair.has(key)) continue;
 			seenPair.add(key);
-			spousePairs.push([id, s]);
+			// Either note may record the year. If both do and disagree, keep this one's and say so.
+			const own = source.marriedYear(id, s);
+			const theirs = source.marriedYear(s, id);
+			if (own !== null && theirs !== null && own !== theirs) {
+				const a = persons.get(id);
+				const b = persons.get(s);
+				warnings.push({
+					message: `${a?.name} and ${b?.name} have different marriage years on their notes (${own} and ${theirs}). Using ${own}.`,
+					path: a?.path ?? undefined,
+					name: a?.name,
+				});
+			}
+			spousePairs.push([id, s, own ?? theirs]);
 		}
 	}
 

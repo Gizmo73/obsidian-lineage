@@ -33,7 +33,12 @@ export interface GraphSource {
 	spouses(id: PersonId): PersonId[];
 	/** Data problems recorded against this note (bad years, self references). */
 	issues(id: PersonId): LineageWarning[];
+	/** The marriage year this person's own note gives for that spouse, if any. */
+	marriedYear(id: PersonId, spouse: PersonId): number | null;
 }
+
+/** Two declared spouses and their marriage year, when either note gives one. */
+export type SpousePair = [PersonId, PersonId, number | null];
 
 /** The part of the family graph selected for one code block. */
 export interface Tree {
@@ -42,7 +47,7 @@ export interface Tree {
 	/** [parent, child] pairs, acyclic. */
 	parentEdges: [PersonId, PersonId][];
 	/** Declared spouse pairs, each pair listed once. */
-	spousePairs: [PersonId, PersonId][];
+	spousePairs: SpousePair[];
 	warnings: LineageWarning[];
 }
 

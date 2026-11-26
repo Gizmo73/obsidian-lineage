@@ -55,6 +55,15 @@
 	font-variant-numeric: tabular-nums;
 }
 
+/* "m. YYYY" above a marriage line. */
+.lineage-married {
+	fill: var(--text-faint);
+	font-size: 11px;
+	font-family: var(--font-text);
+	font-variant-numeric: tabular-nums;
+	font-style: italic;
+}
+
 .lineage-person[data-path] {
 	cursor: pointer;
 }

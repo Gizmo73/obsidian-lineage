@@ -4,6 +4,8 @@ export interface PropertyNames {
 	mother: string;
 	father: string;
 	spouse: string;
+	/** Year of marriage, or a list of years in the same order as the spouse links. */
+	married: string;
 	born: string;
 	died: string;
 }
@@ -14,6 +16,8 @@ export interface PersonRecord {
 	mother: PersonId | null;
 	father: PersonId | null;
 	spouses: PersonId[];
+	/** Known marriage years from this note, as [spouse, year]. */
+	marriedYears: [PersonId, number][];
 	born: number | null;
 	died: number | null;
 	issues: LineageWarning[];
@@ -110,11 +114,37 @@ export function parseRecord(
 
 	const mother = single(props.mother, "mother");
 	const father = single(props.father, "father");
-	const spouses: PersonId[] = [];
-	for (const t of extractLinkTexts(getProp(fm, props.spouse))) {
-		const id = toId(t, "spouse");
-		if (id && !spouses.includes(id)) spouses.push(id);
+
+	// Marriage years pair with spouse links by position: the first year goes
+	// with the first spouse, and so on. A blank or "?" entry is an unknown year.
+	const rawMarried = getProp(fm, props.married);
+	const marriedList: unknown[] = Array.isArray(rawMarried) ? rawMarried : rawMarried === undefined ? [] : [rawMarried];
+	const marriedAt: (number | null)[] = marriedList.map((v) => {
+		if (typeof v === "string" && v.trim() === "?") return null;
+		const y = parseYear(v);
+		if (y === "bad") {
+			warn(`${props.married} value "${String(v)}" is not a whole year. Treated as unknown.`);
+			return null;
+		}
+		return y;
+	});
+
+	const spouseTexts = extractLinkTexts(getProp(fm, props.spouse));
+	if (marriedAt.length > spouseTexts.length) {
+		warn(
+			`${name} has ${marriedAt.length} ${props.married} years but ${spouseTexts.length} spouse links. ` +
+				`Years are matched to spouses in order, so the extra ones are ignored.`,
+		);
 	}
+	const spouses: PersonId[] = [];
+	const marriedYears: [PersonId, number][] = [];
+	spouseTexts.forEach((t, i) => {
+		const id = toId(t, "spouse");
+		if (!id || spouses.includes(id)) return;
+		spouses.push(id);
+		const y = marriedAt[i];
+		if (y !== null && y !== undefined) marriedYears.push([id, y]);
+	});
 
 	const year = (key: string): number | null => {
 		const raw = getProp(fm, key);
@@ -132,6 +162,7 @@ export function parseRecord(
 		mother,
 		father: father === mother ? null : father,
 		spouses,
+		marriedYears,
 		born: year(props.born),
 		died: year(props.died),
 		issues,
@@ -141,7 +172,7 @@ export function parseRecord(
 
 /** Relationship data comparable across updates, to skip redraws for unrelated edits. */
 export function recordSignature(r: PersonRecord): string {
-	return JSON.stringify([r.mother, r.father, r.spouses, r.born, r.died, r.issues.map((i) => i.message)]);
+	return JSON.stringify([r.mother, r.father, r.spouses, r.marriedYears, r.born, r.died, r.issues.map((i) => i.message)]);
 }
 
 /** In-memory index with reverse lookups for children and spouses. */
@@ -205,6 +236,11 @@ export class RelationshipStore implements GraphSource {
 
 	issues(id: PersonId): LineageWarning[] {
 		return this.records.get(id)?.issues ?? [];
+	}
+
+	marriedYear(id: PersonId, spouse: PersonId): number | null {
+		const hit = this.records.get(id)?.marriedYears.find(([s]) => s === spouse);
+		return hit ? hit[1] : null;
 	}
 }
 

@@ -34,6 +34,11 @@ export function buildViewSvg(doc: Document, layout: Layout, seed: string): { svg
 	stage.appendChild(el(doc, "path", { class: "lineage-line lineage-descent", d: pathData(layout.descentLines) }));
 	stage.appendChild(el(doc, "path", { class: "lineage-line lineage-marriage", d: pathData(layout.marriageLines) }));
 	stage.appendChild(el(doc, "path", { class: "lineage-line lineage-partner", d: pathData(layout.partnerLines) }));
+	for (const l of layout.marriageLabels) {
+		const t = el(doc, "text", { class: "lineage-married", x: l.x, y: l.y, "text-anchor": l.anchor });
+		t.textContent = l.text;
+		stage.appendChild(t);
+	}
 
 	for (const n of layout.nodes) {
 		const cls = ["lineage-person"];
@@ -100,6 +105,18 @@ export function buildExportSvg(doc: Document, layout: Layout): SVGSVGElement {
 	svg.appendChild(
 		el(doc, "path", { ...lineAttrs, "stroke-linecap": "butt", "stroke-dasharray": PARTNER_DASH, d: pathData(layout.partnerLines) }),
 	);
+	for (const l of layout.marriageLabels) {
+		const t = el(doc, "text", {
+			x: l.x,
+			y: l.y,
+			"text-anchor": l.anchor,
+			"font-family": EXPORT_FONT,
+			"font-size": METRICS.yearsSize,
+			fill: "#000000",
+		});
+		t.textContent = l.text;
+		svg.appendChild(t);
+	}
 
 	for (const n of layout.nodes) {
 		const name = el(doc, "text", {

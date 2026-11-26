@@ -24,6 +24,8 @@ function randomFamily(seed: number, n: number) {
 		if (r() < 0.8) fm.Mother = `[[${parent()}]]`;
 		if (r() < 0.7) fm.Father = `[[${parent()}]]`;
 		if (r() < 0.4) fm.Spouse = Array.from({ length: 1 + Math.floor(r() * 2) }, () => `[[P${Math.floor(r() * n)}]]`);
+		// Marriage years that may be short, long, unknown or junk.
+		if (r() < 0.3) fm.Married = Array.from({ length: Math.floor(r() * 3) }, () => (r() < 0.7 ? 1320 + i : r() < 0.5 ? "?" : "soon"));
 		if (r() < 0.7) fm.Born = r() < 0.9 ? 1300 + i : "unknown";
 		store.set(parseRecord(`P${i}.md`, fm, DEFAULT_PROPS, resolve));
 	}

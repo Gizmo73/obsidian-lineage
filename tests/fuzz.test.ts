@@ -24,6 +24,10 @@ function randomFamily(seed: number, n: number) {
 		if (r() < 0.8) fm.Mother = `[[${parent()}]]`;
 		if (r() < 0.7) fm.Father = `[[${parent()}]]`;
 		if (r() < 0.4) fm.Spouse = Array.from({ length: 1 + Math.floor(r() * 2) }, () => `[[P${Math.floor(r() * n)}]]`);
+		// Raised by anyone: older, younger (loops), themselves, a parent, or a missing note.
+		if (r() < 0.25) fm["Raised by"] = Array.from({ length: 1 + Math.floor(r() * 2) }, () => `[[${parent()}]]`);
+		// Marriage years that may be short, long, unknown or junk.
+		if (r() < 0.3) fm.Married = Array.from({ length: Math.floor(r() * 3) }, () => (r() < 0.7 ? 1320 + i : r() < 0.5 ? "?" : "soon"));
 		if (r() < 0.7) fm.Born = r() < 0.9 ? 1300 + i : "unknown";
 		store.set(parseRecord(`P${i}.md`, fm, DEFAULT_PROPS, resolve));
 	}
@@ -37,7 +41,9 @@ test("random messy families never crash and keep layout invariants", () => {
 		const layout = layoutTree(tree, (t) => t.length * 7);
 		const node = new Map(layout.nodes.map((n) => [n.id, n]));
 		assert.equal(layout.nodes.length, tree.persons.size);
-		for (const [p, c] of tree.parentEdges) assert.ok(node.get(p)!.gen < node.get(c)!.gen, `seed ${s}: ${p} above ${c}`);
+		for (const [p, c] of [...tree.parentEdges, ...tree.raisedEdges]) {
+			assert.ok(node.get(p)!.gen < node.get(c)!.gen, `seed ${s}: ${p} above ${c}`);
+		}
 		for (const n of layout.nodes) assert.ok(Number.isFinite(n.x) && Number.isFinite(n.y), `seed ${s}: finite coords`);
 		const rows = new Map<number, typeof layout.nodes>();
 		for (const n of layout.nodes) rows.set(n.gen, [...(rows.get(n.gen) ?? []), n]);

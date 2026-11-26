@@ -9,7 +9,8 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE ?? "playwright");
 const page = await esbuild.build({ entryPoints: ["scripts/harness/page.ts"], bundle: true, format: "iife", write: false, external: ["html2canvas", "dompurify", "canvg", "core-js"] });
 const tree = JSON.parse(readFileSync(process.argv[2], "utf8"));
 const css = readFileSync("styles.css", "utf8");
-const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
+// Set CHROMIUM_PATH to use a specific browser; otherwise Playwright finds its own.
+const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 
 async function setup(opts) {
 	const ctx = await browser.newContext({ viewport: { width: 640, height: 600 }, ...opts });

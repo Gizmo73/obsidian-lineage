@@ -29,11 +29,20 @@ export interface GraphSource {
 	parents(id: PersonId): PersonId[];
 	/** Notes whose Mother or Father points at this person. */
 	children(id: PersonId): PersonId[];
+	/** Adoptive, foster or "on paper" parents (excluding self and the real parents). */
+	raisedBy(id: PersonId): PersonId[];
+	/** Notes whose Raised by points at this person. */
+	raisedChildren(id: PersonId): PersonId[];
 	/** Own Spouse entries plus notes whose Spouse points here (excluding self). */
 	spouses(id: PersonId): PersonId[];
 	/** Data problems recorded against this note (bad years, self references). */
 	issues(id: PersonId): LineageWarning[];
+	/** The marriage year this person's own note gives for that spouse, if any. */
+	marriedYear(id: PersonId, spouse: PersonId): number | null;
 }
+
+/** Two declared spouses and their marriage year, when either note gives one. */
+export type SpousePair = [PersonId, PersonId, number | null];
 
 /** The part of the family graph selected for one code block. */
 export interface Tree {
@@ -41,8 +50,10 @@ export interface Tree {
 	persons: Map<PersonId, PersonInfo>;
 	/** [parent, child] pairs, acyclic. */
 	parentEdges: [PersonId, PersonId][];
+	/** [raiser, child] pairs from Raised by. Acyclic together with parentEdges. */
+	raisedEdges: [PersonId, PersonId][];
 	/** Declared spouse pairs, each pair listed once. */
-	spousePairs: [PersonId, PersonId][];
+	spousePairs: SpousePair[];
 	warnings: LineageWarning[];
 }
 

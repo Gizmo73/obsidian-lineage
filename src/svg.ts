@@ -4,6 +4,11 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 
 export const EXPORT_FONT = "Helvetica, Arial, sans-serif";
 
+/** Dash pattern for co-parents who are not declared spouses. Keep in step with styles.css. */
+const PARTNER_DASH = "4 3";
+/** Dot pattern for Raised by lines. Keep in step with styles.css. */
+const RAISED_DOTS = "1 2.5";
+
 function el<K extends keyof SVGElementTagNameMap>(
 	doc: Document,
 	tag: K,
@@ -30,6 +35,13 @@ export function buildViewSvg(doc: Document, layout: Layout, seed: string): { svg
 
 	stage.appendChild(el(doc, "path", { class: "lineage-line lineage-descent", d: pathData(layout.descentLines) }));
 	stage.appendChild(el(doc, "path", { class: "lineage-line lineage-marriage", d: pathData(layout.marriageLines) }));
+	stage.appendChild(el(doc, "path", { class: "lineage-line lineage-partner", d: pathData(layout.partnerLines) }));
+	stage.appendChild(el(doc, "path", { class: "lineage-line lineage-raised", d: pathData(layout.raisedLines) }));
+	for (const l of layout.marriageLabels) {
+		const t = el(doc, "text", { class: "lineage-married", x: l.x, y: l.y, "text-anchor": l.anchor });
+		t.textContent = l.text;
+		stage.appendChild(t);
+	}
 
 	for (const n of layout.nodes) {
 		const cls = ["lineage-person"];
@@ -93,6 +105,24 @@ export function buildExportSvg(doc: Document, layout: Layout): SVGSVGElement {
 	const lineAttrs = { fill: "none", stroke: "#000000", "stroke-width": 1, "stroke-linecap": "square" };
 	svg.appendChild(el(doc, "path", { ...lineAttrs, d: pathData(layout.descentLines) }));
 	svg.appendChild(el(doc, "path", { ...lineAttrs, d: pathData(layout.marriageLines) }));
+	svg.appendChild(
+		el(doc, "path", { ...lineAttrs, "stroke-linecap": "butt", "stroke-dasharray": PARTNER_DASH, d: pathData(layout.partnerLines) }),
+	);
+	svg.appendChild(
+		el(doc, "path", { ...lineAttrs, "stroke-linecap": "butt", "stroke-dasharray": RAISED_DOTS, d: pathData(layout.raisedLines) }),
+	);
+	for (const l of layout.marriageLabels) {
+		const t = el(doc, "text", {
+			x: l.x,
+			y: l.y,
+			"text-anchor": l.anchor,
+			"font-family": EXPORT_FONT,
+			"font-size": METRICS.yearsSize,
+			fill: "#000000",
+		});
+		t.textContent = l.text;
+		svg.appendChild(t);
+	}
 
 	for (const n of layout.nodes) {
 		const name = el(doc, "text", {

@@ -22,6 +22,7 @@ const treesJs = await esbuild.build({
 				["brannoc-1", "People/Brannoc Thornvale.md", 1],
 				["brannoc-3", "People/Brannoc Thornvale.md", 3],
 				["vesper-5", "Edge cases/Vesper Loop.md", 5],
+				["ember-2", "Edge cases/Ember Marsh.md", 2],
 			];
 			console.log(JSON.stringify(cases.map(([n, s, d]) => {
 				const t = buildTree(store, s, d);
@@ -42,7 +43,8 @@ const html = `<!doctype html><html><head><style>
 	  --background-modifier-border:#999; --interactive-accent:#7c3aed; --font-text: sans-serif; font-family: sans-serif; }
 	${css}</style></head><body></body></html>`;
 
-const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
+// Set CHROMIUM_PATH to use a specific browser; otherwise Playwright finds its own.
+const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 const tab = await browser.newPage({ deviceScaleFactor: 1.5 });
 await tab.setContent(html);
 await tab.addScriptTag({ content: page.outputFiles[0].text });

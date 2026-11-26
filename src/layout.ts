@@ -37,11 +37,26 @@ export interface LayoutNode {
 
 export interface Layout {
 	nodes: LayoutNode[];
+	/** Joins partners declared as spouses (on either note). Drawn solid. */
 	marriageLines: Polyline[];
+	/** Joins co-parents with no declared marriage. Drawn dashed. */
+	partnerLines: Polyline[];
 	descentLines: Polyline[];
+	/** From whoever raised someone down to them. Drawn dotted. */
+	raisedLines: Polyline[];
+	/** "m. YYYY" above marriage lines that have a known year. */
+	marriageLabels: MarriageLabel[];
 	width: number;
 	height: number;
 	warnings: LineageWarning[];
+}
+
+export interface MarriageLabel {
+	text: string;
+	/** Text anchor point and baseline. */
+	x: number;
+	y: number;
+	anchor: "middle" | "start";
 }
 
 export type Measure = (text: string, kind: "name" | "years") => number;
@@ -50,6 +65,22 @@ interface Union {
 	key: string;
 	partners: PersonId[];
 	children: PersonId[];
+	/** True when the partners are declared spouses, false for co-parents only. */
+	married: boolean;
+	/** Marriage year, when either spouse's note gives one. */
+	year: number | null;
+	/** Children these partners raised but did not have. Drawn with a dotted line. */
+	raised: PersonId[];
+}
+
+/**
+ * Space left either side of a marriage label. The seed's highlight and the
+ * hover box reach 6px past a name, so this clears them with room to spare.
+ */
+const LABEL_PAD = 10;
+
+function marriageText(u: Union | undefined): string | null {
+	return u && u.married && u.year !== null ? `m. ${u.year}` : null;
 }
 
 interface Block {
@@ -91,19 +122,28 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 		(parentsOf.get(c) as PersonId[]).push(p);
 		(childrenOf.get(p) as PersonId[]).push(c);
 	}
+	// Whoever raised someone sits above them like a parent, so raised children
+	// count as children for generations and ordering. Unions stay biological.
+	const raisersOf = new Map<PersonId, PersonId[]>(ids.map((id) => [id, []]));
+	for (const [r, c] of tree.raisedEdges) {
+		(raisersOf.get(c) as PersonId[]).push(r);
+		(childrenOf.get(r) as PersonId[]).push(c);
+	}
 
 	// ---- Unions: declared marriages plus every pair of co-parents. ----
 	const unions = new Map<string, Union>();
-	const unionOf = (partners: PersonId[]): Union => {
+	const unionOf = (partners: PersonId[], married = false): Union => {
 		const key = partners.length === 2 ? pairKey(partners[0], partners[1]) : `solo\u0000${partners[0]}`;
 		let u = unions.get(key);
 		if (!u) {
-			u = { key, partners: partners.slice().sort(), children: [] };
+			u = { key, partners: partners.slice().sort(), children: [], married, year: null, raised: [] };
 			unions.set(key, u);
+		} else if (married) {
+			u.married = true;
 		}
 		return u;
 	};
-	for (const [a, b] of tree.spousePairs) unionOf([a, b]);
+	for (const [a, b, year] of tree.spousePairs) unionOf([a, b], true).year = year;
 	const parentUnion = new Map<PersonId, Union>();
 	for (const id of ids) {
 		const ps = parentsOf.get(id) as PersonId[];
@@ -112,7 +152,25 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 		u.children.push(id);
 		parentUnion.set(id, u);
 	}
-	for (const u of unions.values()) u.children.sort((a, b) => comparePersons(info(a), info(b)));
+	// Raised children hang from the couple who raised them when those two are
+	// already a couple, otherwise from each person who raised them. Someone with
+	// no parents in the tree is placed under whoever raised them.
+	for (const id of ids) {
+		const rs = raisersOf.get(id) as PersonId[];
+		if (!rs.length) continue;
+		const pair = rs.length >= 2 ? unions.get(pairKey(rs[0], rs[1])) : undefined;
+		const from = pair ? [pair] : rs.map((r) => unionOf([r]));
+		for (const u of from) u.raised.push(id);
+		if (!parentUnion.has(id)) parentUnion.set(id, from[0]);
+	}
+	for (const u of unions.values()) {
+		u.children.sort((a, b) => comparePersons(info(a), info(b)));
+		u.raised.sort((a, b) => comparePersons(info(a), info(b)));
+	}
+	/** Children of either kind, for pulling parents towards them. */
+	const kidsOf = (u: Union): PersonId[] => [...u.children, ...u.raised];
+	/** The children laid out as this union's own sibling group. */
+	const placedKids = (u: Union): PersonId[] => kidsOf(u).filter((c) => parentUnion.get(c) === u);
 	const unionsOfPerson = new Map<PersonId, Union[]>();
 	for (const u of unions.values()) {
 		for (const p of u.partners) {
@@ -178,7 +236,7 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 	// position of their parents' union. A block holding children of two unions
 	// (an intermarriage) joins one group and sits at the edge facing the other.
 	const sweepDown = (g: number) => {
-		const inLayer = (u: Union) => u.children.filter((c) => gen.get(c) === g).length;
+		const inLayer = (u: Union) => placedKids(u).filter((c) => gen.get(c) === g).length;
 		const keyed = layers[g].map((b, i) => {
 			const us: { u: Union; m: PersonId }[] = [];
 			for (const m of b.members) {
@@ -228,7 +286,8 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 		for (const b of layers[g]) {
 			if (b.members.length < 2) continue;
 			const anchor = (m: PersonId) => {
-				const ps = parentsOf.get(m) as PersonId[];
+				const own = parentsOf.get(m) as PersonId[];
+				const ps = own.length ? own : (raisersOf.get(m) as PersonId[]);
 				return ps.length ? mean(ps.map((p) => norm.get(p) as number)) : null;
 			};
 			const first = anchor(b.members[0]);
@@ -256,17 +315,23 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 		years.set(id, y);
 		width.set(id, Math.max(measure(p.name, "name"), y ? measure(y, "years") : 0, 8));
 	}
+	// Spouses side by side sit further apart when their line carries "m. YYYY".
+	const coupleGapBetween = (a: PersonId, b: PersonId): number => {
+		const text = marriageText(unions.get(pairKey(a, b)));
+		return text ? Math.max(M.coupleGap, measure(text, "years") + 2 * LABEL_PAD) : M.coupleGap;
+	};
 	const x = new Map<PersonId, number>();
 	for (const layer of layers) {
 		let cursor = 0;
 		layer.forEach((b, i) => {
 			let off = 0;
-			b.offsets = b.members.map((m) => {
+			b.offsets = b.members.map((m, k) => {
 				const o = off;
-				off += (width.get(m) as number) + M.coupleGap;
+				off += width.get(m) as number;
+				if (k < b.members.length - 1) off += coupleGapBetween(m, b.members[k + 1]);
 				return o;
 			});
-			b.width = off - M.coupleGap;
+			b.width = off;
 			if (i > 0) cursor += gapBetween(layer[i - 1], b, parentUnion);
 			b.left = cursor;
 			cursor += b.width;
@@ -316,7 +381,7 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 				b.members.forEach((m, k) => {
 					const u = parentUnion.get(m);
 					if (!u) return;
-					const sibs = u.children
+					const sibs = placedKids(u)
 						.filter((c) => gen.get(c) === g)
 						.sort((p, q) => (x.get(p) as number) - (x.get(q) as number));
 					let total = 0;
@@ -340,9 +405,10 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 				const seen = new Set<Union>();
 				for (const m of b.members) {
 					for (const u of unionsOfPerson.get(m) ?? []) {
-						if (seen.has(u) || !u.children.length) continue;
+						const kids = kidsOf(u);
+						if (seen.has(u) || !kids.length) continue;
 						seen.add(u);
-						const cx = u.children.map((c) => x.get(c) as number);
+						const cx = kids.map((c) => x.get(c) as number);
 						const target = (Math.min(...cx) + Math.max(...cx)) / 2;
 						ds.push(b.left + target - unionX(u));
 					}
@@ -373,7 +439,9 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 	// ---- Connectors. ----
 	// Each line remembers its union so crossings between different unions can be bridged.
 	const marriageLines: OwnedLine[] = [];
+	const partnerLines: OwnedLine[] = [];
 	const descentLines: OwnedLine[] = [];
+	const marriageLabels: MarriageLabel[] = [];
 	const unionPoint = new Map<Union, Point>();
 	const bracketTracks = new Map<number, Array<[number, number]>>();
 
@@ -386,16 +454,21 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 		}
 		const adjPair = adjacentPartners(u);
 		const [a, b] = u.partners;
+		// Declared marriages get a solid line; co-parents who never married a dashed one.
+		const joinLines = u.married ? marriageLines : partnerLines;
+		const label = marriageText(u);
 		if (adjPair) {
 			const [l, r] = adjPair;
 			const y = layerTop(gen.get(l) as number) + M.nameMid;
 			const x1 = (x.get(l) as number) + (width.get(l) as number) / 2 + 4;
 			const x2 = (x.get(r) as number) - (width.get(r) as number) / 2 - 4;
-			marriageLines.push({ owner: u.key, line: [
+			joinLines.push({ owner: u.key, line: [
 				[x1, y],
 				[x2, y],
 			] });
 			unionPoint.set(u, [(x1 + x2) / 2, y]);
+			// Above the line, in the gap the blocks pass widened for it.
+			if (label) marriageLabels.push({ text: label, x: (x1 + x2) / 2, y: y - 3, anchor: "middle" });
 		} else if (gen.get(a) === gen.get(b)) {
 			// Partners who are not neighbours: a bracket under both names.
 			const g = gen.get(a) as number;
@@ -404,13 +477,16 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 			const rx = x.get(r) as number;
 			const track = claimTrack(bracketTracks, g, lx, rx);
 			const y = layerTop(g) + M.nodeHeight + 6 + track * M.trackStep;
-			marriageLines.push({ owner: u.key, line: [
+			joinLines.push({ owner: u.key, line: [
 				[lx, nodeBottom(l) + 3],
 				[lx, y],
 				[rx, y],
 				[rx, nodeBottom(r) + 3],
 			] });
 			unionPoint.set(u, [(lx + rx) / 2, y]);
+			// Other people's names sit above a bracket, so the year goes just under it,
+			// beside the drop to the children rather than across it.
+			if (label) marriageLabels.push({ text: label, x: (lx + rx) / 2 + 4, y: y + M.yearsSize, anchor: "start" });
 		} else {
 			// Partners in different generations (inconsistent data): run a line
 			// down from the upper partner and across into the lower one.
@@ -420,7 +496,7 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 			const lw = (width.get(low) as number) / 2 + 4;
 			const y = layerTop(gen.get(low) as number) + M.nameMid;
 			const endX = ux < lx ? lx - lw : lx + lw;
-			marriageLines.push({ owner: u.key, line: [
+			joinLines.push({ owner: u.key, line: [
 				[ux, nodeBottom(up) + 3],
 				[ux, y],
 				[endX, y],
@@ -429,42 +505,55 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 		}
 	}
 
+	// A child who also has their real parents in the tree takes the dotted line a
+	// little to one side, so the two lines into them stay distinguishable.
+	const RAISED_OFFSET = 6;
+	const raisedLines: OwnedLine[] = [];
 	const barTracks = new Map<number, Array<[number, number]>>();
-	const bars: { u: Union; g: number; kids: PersonId[]; lo: number; hi: number; track: number }[] = [];
+	type Bar = { u: Union; owner: string; raised: boolean; g: number; kids: PersonId[]; lo: number; hi: number; track: number };
+	const bars: Bar[] = [];
+	const kidX = (c: PersonId, raised: boolean) =>
+		(x.get(c) as number) + (raised && (parentsOf.get(c) as PersonId[]).length ? RAISED_OFFSET : 0);
 	for (const u of sortedUnions) {
-		if (!u.children.length) continue;
-		const [ux] = unionPoint.get(u) as Point;
-		const byGen = new Map<number, PersonId[]>();
-		for (const c of u.children) {
-			const g = gen.get(c) as number;
-			if (!byGen.has(g)) byGen.set(g, []);
-			(byGen.get(g) as PersonId[]).push(c);
-		}
-		for (const [g, kids] of byGen) {
-			const xs = kids.map((c) => x.get(c) as number).concat(ux);
-			const lo = Math.min(...xs);
-			const hi = Math.max(...xs);
-			bars.push({ u, g, kids, lo, hi, track: claimTrack(barTracks, g, lo, hi) });
+		for (const raised of [false, true]) {
+			const all = raised ? u.raised : u.children;
+			if (!all.length) continue;
+			const [ux] = unionPoint.get(u) as Point;
+			const byGen = new Map<number, PersonId[]>();
+			for (const c of all) {
+				const g = gen.get(c) as number;
+				if (!byGen.has(g)) byGen.set(g, []);
+				(byGen.get(g) as PersonId[]).push(c);
+			}
+			const owner = raised ? `${u.key}\u0000raised` : u.key;
+			for (const [g, kids] of byGen) {
+				const xs = kids.map((c) => kidX(c, raised)).concat(ux);
+				const lo = Math.min(...xs);
+				const hi = Math.max(...xs);
+				bars.push({ u, owner, raised, g, kids, lo, hi, track: claimTrack(barTracks, g, lo, hi) });
+			}
 		}
 	}
 	for (const bar of bars) {
 		const n = (barTracks.get(bar.g) as Array<[number, number]>).length;
 		const [ux, uy] = unionPoint.get(bar.u) as Point;
 		const barY = layerTop(bar.g) - M.genGap / 2 + (bar.track - (n - 1) / 2) * M.trackStep;
-		descentLines.push({ owner: bar.u.key, line: [
+		const out = bar.raised ? raisedLines : descentLines;
+		out.push({ owner: bar.owner, line: [
 			[ux, uy],
 			[ux, barY],
 		] });
 		if (bar.hi - bar.lo > 0.5) {
-			descentLines.push({ owner: bar.u.key, line: [
+			out.push({ owner: bar.owner, line: [
 				[bar.lo, barY],
 				[bar.hi, barY],
 			] });
 		}
 		for (const c of bar.kids) {
-			descentLines.push({ owner: bar.u.key, line: [
-				[x.get(c) as number, barY],
-				[x.get(c) as number, layerTop(bar.g) - 3],
+			const cx = kidX(c, bar.raised);
+			out.push({ owner: bar.owner, line: [
+				[cx, barY],
+				[cx, layerTop(bar.g) - 3],
 			] });
 		}
 	}
@@ -480,13 +569,22 @@ export function layoutTree(tree: Tree, measure: Measure): Layout {
 	}));
 
 	let bottom = layerTop(maxGen) + M.nodeHeight;
-	for (const { line } of marriageLines) for (const [, y] of line) bottom = Math.max(bottom, y);
+	for (const { line } of [...marriageLines, ...partnerLines]) for (const [, y] of line) bottom = Math.max(bottom, y);
+	let right = maxX - minX + M.margin;
+	for (const l of marriageLabels) {
+		bottom = Math.max(bottom, l.y + 3);
+		if (l.anchor === "start") right = Math.max(right, l.x + measure(l.text, "years"));
+	}
 
+	const allLines = [...marriageLines, ...partnerLines, ...descentLines, ...raisedLines];
 	return {
 		nodes,
-		marriageLines: bridgeCrossings(marriageLines, [...marriageLines, ...descentLines]),
-		descentLines: bridgeCrossings(descentLines, [...marriageLines, ...descentLines]),
-		width: maxX - minX + 2 * M.margin,
+		marriageLines: bridgeCrossings(marriageLines, allLines),
+		partnerLines: bridgeCrossings(partnerLines, allLines),
+		descentLines: bridgeCrossings(descentLines, allLines),
+		raisedLines: bridgeCrossings(raisedLines, allLines),
+		marriageLabels,
+		width: right + M.margin,
 		height: bottom + M.margin,
 		warnings,
 	};

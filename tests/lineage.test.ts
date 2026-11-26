@@ -134,6 +134,126 @@ test("layout keeps parents above children, partners level, and no overlaps", () 
 	}
 });
 
+test("declared spouses get a marriage line; unmarried co-parents a partner line", () => {
+	const married = layoutTree(buildTree(store, P("Brannoc Thornvale"), 1), measure);
+	assert.ok(married.marriageLines.length > 0, "Brannoc's marriages are drawn solid");
+	assert.equal(married.partnerLines.length, 0, "no dashed lines when every couple is married");
+
+	// One-sided declaration: only Aldric lists Ysolde, and that alone makes them married.
+	const oneSided = layoutTree(buildTree(store, P("Ysolde Thornvale"), 1), measure);
+	assert.ok(oneSided.marriageLines.length > 0);
+	assert.equal(oneSided.partnerLines.length, 0);
+
+	const unwed = layoutTree(buildTree(store, "Edge cases/Ember Marsh.md", 1), measure);
+	assert.equal(unwed.marriageLines.length, 0, "Lysa and Tavin are not spouses");
+	assert.equal(unwed.partnerLines.length, 1, "they are joined by one dashed line");
+	assert.ok(unwed.descentLines.length > 0, "Ember still hangs from her parents");
+});
+
+test("Married years pair with spouses in order; ? and blanks are unknown", () => {
+	const resolve = (l: string) => ({ path: `${l}.md` });
+	const rec = (fm: Record<string, unknown>) => parseRecord("A.md", fm, DEFAULT_PROPS, resolve);
+
+	assert.deepEqual(rec({ Spouse: "[[B]]", Married: 1355 }).marriedYears, [["B.md", 1355]]);
+	assert.deepEqual(rec({ Spouse: "[[B]]", married: "1355" }).marriedYears, [["B.md", 1355]], "string year, any case");
+	assert.deepEqual(
+		rec({ Spouse: ["[[B]]", "[[C]]", "[[D]]"], Married: ["?", 1418, null] }).marriedYears,
+		[["C.md", 1418]],
+		"unknown first and third years",
+	);
+	assert.deepEqual(rec({ Spouse: ["[[B]]", "[[C]]"] }).marriedYears, [], "no Married at all");
+
+	const bad = rec({ Spouse: "[[B]]", Married: "spring 1355" });
+	assert.deepEqual(bad.marriedYears, []);
+	assert.match(bad.issues[0].message, /not a whole year/);
+
+	const extra = rec({ Spouse: "[[B]]", Married: [1355, 1360] });
+	assert.deepEqual(extra.marriedYears, [["B.md", 1355]]);
+	assert.match(extra.issues[0].message, /2 Married years but 1 spouse links/);
+});
+
+test("a marriage year can come from either spouse; disagreements are warned", () => {
+	const resolve = (l: string) => ({ path: `${l}.md` });
+	const s = new RelationshipStore();
+	s.set(parseRecord("A.md", { Spouse: "[[B]]" }, DEFAULT_PROPS, resolve));
+	s.set(parseRecord("B.md", { Spouse: "[[A]]", Married: 1355 }, DEFAULT_PROPS, resolve));
+	assert.deepEqual(buildTree(s, "A.md", 1).spousePairs, [["A.md", "B.md", 1355]]);
+
+	s.set(parseRecord("A.md", { Spouse: "[[B]]", Married: 1356 }, DEFAULT_PROPS, resolve));
+	const t = buildTree(s, "A.md", 1);
+	assert.equal(t.spousePairs[0][2], 1356);
+	assert.match(t.warnings.map((w) => w.message).join("\n"), /different marriage years on their notes \(1356 and 1355\)/);
+});
+
+test("marriage labels sit above the line, in a gap wide enough for them", () => {
+	const layout = layoutTree(buildTree(store, P("Brannoc Thornvale"), 1), measure);
+	assert.deepEqual(layout.marriageLabels.map((l) => l.text).sort(), ["m. 1380", "m. 1407", "m. 1418"]);
+	for (const l of layout.marriageLabels) {
+		const w = measure(l.text, "years");
+		const row = layout.nodes.filter((n) => Math.abs(n.y - (l.y - METRICS.nameMid + 3)) < 0.01);
+		assert.ok(row.length > 0, `${l.text} sits on a row of names`);
+		for (const n of row) {
+			const clear = l.x + w / 2 <= n.x - n.width / 2 || l.x - w / 2 >= n.x + n.width / 2;
+			assert.ok(clear, `${l.text} does not overlap ${n.info.name}`);
+		}
+	}
+
+	// No year, no label: Aldric and Ysolde are married with no date given.
+	assert.equal(layoutTree(buildTree(store, P("Ysolde Thornvale"), 1), measure).marriageLabels.length, 0);
+	// Unmarried co-parents never get one.
+	assert.equal(layoutTree(buildTree(store, "Edge cases/Ember Marsh.md", 1), measure).marriageLabels.length, 0);
+});
+
+test("Raised by is parsed, reverse-indexed and traversed like a parent", () => {
+	const resolve = (l: string) => ({ path: `${l}.md` });
+	const rec = (fm: Record<string, unknown>) => parseRecord("A.md", fm, DEFAULT_PROPS, resolve);
+	assert.deepEqual(rec({ "raised by": ["[[B]]", "[[C]]"] }).raisedBy, ["B.md", "C.md"], "list, any case");
+	const both = rec({ Mother: "[[B]]", "Raised by": ["[[B]]", "[[C]]"] });
+	assert.deepEqual(both.raisedBy, ["C.md"], "a parent is not also a raiser");
+	assert.match(both.issues[0].message, /both a parent and Raised by/);
+	assert.match(rec({ "Raised by": "[[A]]" }).issues[0].message, /lists themselves as raised by/);
+
+	const oda = "Edge cases/Oda Marsh.md";
+	assert.deepEqual(store.raisedChildren(oda).sort(), ["Edge cases/Ember Marsh.md", "Edge cases/Finch Marsh.md"]);
+	const t = buildTree(store, oda, 1);
+	assert.deepEqual(names(t), ["Ember Marsh", "Finch Marsh", "Oda Marsh"]);
+	assert.equal(t.parentEdges.length, 0);
+	assert.equal(t.raisedEdges.length, 2);
+});
+
+test("raised children sit below whoever raised them, joined by dotted lines", () => {
+	const ember = "Edge cases/Ember Marsh.md";
+	const layout = layoutTree(buildTree(store, ember, 1), measure);
+	const node = new Map(layout.nodes.map((n) => [n.info.name, n]));
+	for (const parent of ["Oda Marsh", "Lysa Marsh", "Tavin Cole"]) {
+		assert.ok(node.get(parent)!.gen < node.get("Ember Marsh")!.gen, `${parent} above Ember`);
+	}
+	assert.ok(layout.descentLines.length > 0, "solid line from her parents");
+	assert.ok(layout.raisedLines.length > 0, "dotted line from Oda");
+	// With her real parents also drawn, the dotted line meets her just to one side.
+	const e = node.get("Ember Marsh")!;
+	const ends = layout.raisedLines.map((l) => l[l.length - 1]);
+	assert.ok(ends.some(([x, y]) => Math.abs(y - (e.y - 3)) < 0.01 && x > e.x + 1), "dotted line offset from the solid one");
+
+	// A foundling with nobody but Oda is placed under her like a child.
+	const solo = layoutTree(buildTree(store, "Edge cases/Finch Marsh.md", 1), measure);
+	const sn = new Map(solo.nodes.map((n) => [n.info.name, n]));
+	assert.equal(solo.descentLines.length, 0);
+	assert.ok(solo.raisedLines.length > 0);
+	assert.ok(Math.abs(sn.get("Finch Marsh")!.x - sn.get("Oda Marsh")!.x) < 1, "Finch sits centred under Oda");
+});
+
+test("a loop through Raised by is broken and named", () => {
+	const resolve = (l: string) => ({ path: `${l}.md` });
+	const s = new RelationshipStore();
+	s.set(parseRecord("A.md", { "Raised by": "[[B]]" }, DEFAULT_PROPS, resolve));
+	s.set(parseRecord("B.md", { Mother: "[[A]]" }, DEFAULT_PROPS, resolve));
+	const t = buildTree(s, "A.md", 3);
+	assert.equal(t.parentEdges.length + t.raisedEdges.length, 1, "one of the two links is dropped");
+	assert.match(t.warnings.map((w) => w.message).join("\n"), /Ancestry cycle/);
+	assert.doesNotThrow(() => layoutTree(t, measure));
+});
+
 test("siblings are ordered by birth year, unknown last", () => {
 	const t = buildTree(store, P("Corvin Thornvale"), 1);
 	const layout = layoutTree(t, measure);

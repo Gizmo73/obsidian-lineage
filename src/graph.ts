@@ -1,4 +1,4 @@
-import { GraphSource, isMissingId, LineageWarning, PersonId, Tree } from "./types";
+import { GraphSource, isMissingId, LineageWarning, PersonId, SpousePair, Tree } from "./types";
 
 /**
  * Breadth-first walk from the seed. Parent, child and spouse edges each cost
@@ -42,28 +42,57 @@ export function buildTree(source: GraphSource, seed: PersonId, depth: number): T
 	for (const id of persons.keys()) warnings.push(...source.issues(id));
 
 	let parentEdges: [PersonId, PersonId][] = [];
-	const spousePairs: [PersonId, PersonId][] = [];
+	let raisedEdges: [PersonId, PersonId][] = [];
+	const spousePairs: SpousePair[] = [];
 	const seenPair = new Set<string>();
 	for (const id of persons.keys()) {
 		for (const p of source.parents(id)) {
 			if (persons.has(p)) parentEdges.push([p, id]);
+		}
+		for (const r of source.raisedBy(id)) {
+			if (persons.has(r)) raisedEdges.push([r, id]);
 		}
 		for (const s of source.spouses(id)) {
 			if (!persons.has(s)) continue;
 			const key = pairKey(id, s);
 			if (seenPair.has(key)) continue;
 			seenPair.add(key);
-			spousePairs.push([id, s]);
+			// Either note may record the year. If both do and disagree, keep this one's and say so.
+			const own = source.marriedYear(id, s);
+			const theirs = source.marriedYear(s, id);
+			if (own !== null && theirs !== null && own !== theirs) {
+				const a = persons.get(id);
+				const b = persons.get(s);
+				warnings.push({
+					message: `${a?.name} and ${b?.name} have different marriage years on their notes (${own} and ${theirs}). Using ${own}.`,
+					path: a?.path ?? undefined,
+					name: a?.name,
+				});
+			}
+			spousePairs.push([id, s, own ?? theirs]);
 		}
 	}
 
-	parentEdges = breakCycles(persons, parentEdges, warnings);
+	// Whoever raised someone is drawn above them too, so both kinds of edge
+	// must be loop-free together.
+	const raisedKeys = new Set(raisedEdges.map(([r, c]) => `${r}\u0000${c}`));
+	const kept = new Set(
+		breakCycles(persons, [...parentEdges, ...raisedEdges], warnings, raisedKeys).map(([p, c]) => `${p}\u0000${c}`),
+	);
+	parentEdges = parentEdges.filter(([p, c]) => kept.has(`${p}\u0000${c}`));
+	raisedEdges = raisedEdges.filter(([r, c]) => kept.has(`${r}\u0000${c}`));
 
-	return { seed, persons, parentEdges, spousePairs, warnings: dedupe(warnings) };
+	return { seed, persons, parentEdges, raisedEdges, spousePairs, warnings: dedupe(warnings) };
 }
 
 function neighbours(source: GraphSource, id: PersonId): PersonId[] {
-	return [...source.parents(id), ...source.children(id), ...source.spouses(id)];
+	return [
+		...source.parents(id),
+		...source.children(id),
+		...source.spouses(id),
+		...source.raisedBy(id),
+		...source.raisedChildren(id),
+	];
 }
 
 export function pairKey(a: string, b: string): string {
@@ -75,6 +104,7 @@ function breakCycles(
 	persons: Tree["persons"],
 	edges: [PersonId, PersonId][],
 	warnings: LineageWarning[],
+	raisedKeys: Set<string>,
 ): [PersonId, PersonId][] {
 	const out = new Map<PersonId, PersonId[]>();
 	for (const [p, c] of edges) {
@@ -101,11 +131,13 @@ function breakCycles(
 			const c = kids[top.i++];
 			const s = state.get(c);
 			if (s === 1) {
-				dropped.add(`${top.id}\u0000${c}`);
+				const key = `${top.id}\u0000${c}`;
+				dropped.add(key);
 				const parent = persons.get(top.id);
 				const child = persons.get(c);
+				const role = raisedKeys.has(key) ? "the person who raised them," : "parent";
 				warnings.push({
-					message: `Ancestry cycle: ${child?.name} is recorded as their own ancestor. The link to parent ${parent?.name} was ignored.`,
+					message: `Ancestry cycle: ${child?.name} is recorded as their own ancestor. The link to ${role} ${parent?.name} was ignored.`,
 					path: child?.path ?? undefined,
 					name: child?.name,
 				});

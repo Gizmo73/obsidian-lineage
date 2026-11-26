@@ -3,7 +3,9 @@
 Data-driven family trees for Obsidian. Put a `lineage` code block in any note and it draws a family tree built entirely from `Mother`, `Father` and `Spouse` frontmatter on your person notes. Nothing is positioned by hand: add a note with a `Mother` property and every open tree that includes her updates itself.
 
 - Children and siblings are derived automatically.
-- Spouses are shown as people in the tree, joined by a marriage line. Remarriages get one line per union.
+- Spouses are shown as people in the tree, joined by a solid marriage line. Remarriages get one line per union.
+- Parents who share a child but are not listed as each other's `Spouse` are joined by a dashed line instead, the usual convention for an unmarried couple.
+- Whoever raised someone (an adoptive, foster or on-paper parent) can be linked with `Raised by` and is drawn with a dotted line, alongside the real parents' solid one. One tree can show both the truth and the story everyone believes.
 - Pan and zoom inside the note, on desktop and on iOS/Android.
 - Export a clean black-on-white PDF or SVG straight into your vault (works on mobile).
 
@@ -23,6 +25,10 @@ Mother: "[[Aelira Thornvale]]"
 Father: "[[Corvin Thornvale]]"
 Spouse:
   - "[[Mirela Ashgrove]]"
+  - "[[Isolde Fenwick]]"
+Married:
+  - 1407
+  - 1418
 Born: 1385
 Died: 1442
 ---
@@ -31,7 +37,9 @@ Died: 1442
 | Property | Value |
 |---|---|
 | `Mother`, `Father` | One wikilink each. Optional. |
-| `Spouse` | A wikilink or a list of them. A marriage declared on one side only still counts. |
+| `Spouse` | A wikilink or a list of them. A marriage declared on one side only still counts. Co-parents without one are drawn with a dashed line. |
+| `Married` | Optional. The year of marriage, shown as "m. 1407" above the marriage line. With several spouses, give a list in the same order as `Spouse`; use `?` for a year you don't know. Either spouse's note can hold it. A missing year just means the date is unknown, not that there was no marriage. |
+| `Raised by` | Optional. A wikilink or a list of them: whoever raised this person in place of, or as well as, their `Mother` and `Father`. They are drawn a generation above with a dotted line. Someone with no parents in the tree sits under whoever raised them. |
 | `Born`, `Died` | A whole year. Anything else is treated as unknown and flagged. |
 
 Property names are configurable in settings and are matched ignoring case (`mother`, `Mother`, `MOTHER`). Only frontmatter is read; Dataview inline fields are not.
@@ -49,7 +57,7 @@ height: 500
 | Option | Default | Meaning |
 |---|---|---|
 | `seed` | required | The starting person. Resolved like a normal link: by name, path or alias. |
-| `depth` | 3 | How many relationship hops to follow from the seed. Parent, child and spouse each count as one hop. `0` shows only the seed. |
+| `depth` | 3 | How many relationship hops to follow from the seed. Parent, child, spouse and raised-by links each count as one hop. `0` shows only the seed. |
 | `height` | 500 | Height of the view in pixels. |
 
 If a child is in the tree, both of their parents are drawn even if the second parent is beyond the depth limit, so no child looks like they have one parent.
@@ -69,12 +77,15 @@ The toolbar in the top-right corner has **Fit**, **Export PDF**, **Export SVG** 
 Problems in the data never break the view. They are listed in a collapsible line under the tree, each linking to the note concerned:
 
 - links to notes that do not exist (the name is shown greyed out and not followed)
-- people listed as their own parent or spouse
+- people listed as their own parent, spouse or raiser
+- someone listed as both a parent and `Raised by` (the `Raised by` link is ignored)
 - ancestry loops (someone recorded as their own ancestor); one link in the loop is ignored so the tree can still be drawn
 - years that are not whole numbers
+- more `Married` years than spouse links (years are matched in order, so the list is probably out of step)
+- spouses whose notes give different marriage years
 - partners who cannot share a generation because one descends from the other
 
-Plain text in `Mother`/`Father`/`Spouse` (not a `[[link]]`) is ignored.
+Plain text in `Mother`/`Father`/`Spouse`/`Raised by` (not a `[[link]]`) is ignored.
 
 ## Export
 
@@ -98,7 +109,7 @@ npm test        # unit, fuzz and index tests (Node)
 npm run build   # typecheck and production build
 ```
 
-To try it, copy `main.js`, `manifest.json` and `styles.css` into `test-vault/.obsidian/plugins/lineage-family-tree/`, open `test-vault` as a vault, enable the plugin and open **Lineage demo**. The test vault covers three generations, a remarriage with half siblings, an intermarriage, a one-sided marriage, a missing note, an ancestry cycle, mixed-case properties, and notes with no years, birth only and death only.
+To try it, copy `main.js`, `manifest.json` and `styles.css` into `test-vault/.obsidian/plugins/lineage-family-tree/`, open `test-vault` as a vault, enable the plugin and open **Lineage demo**. The test vault covers three generations, a remarriage with half siblings, an intermarriage, a one-sided marriage, unmarried co-parents, a child raised by someone else alongside a foundling, a missing note, an ancestry cycle, mixed-case properties, and notes with no years, birth only and death only.
 
 `scripts/harness/` has headless-Chromium checks used during development: `run.mjs` renders the demo trees to PNG and PDF, and `panzoom.mjs` drives pan, pinch and wheel input.
 

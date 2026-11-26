@@ -4,7 +4,15 @@ import { join, relative } from "node:path";
 import { parse } from "yaml";
 import { basename, parseRecord, PropertyNames, RelationshipStore } from "../src/store";
 
-export const DEFAULT_PROPS: PropertyNames = { mother: "Mother", father: "Father", spouse: "Spouse", born: "Born", died: "Died" };
+export const DEFAULT_PROPS: PropertyNames = {
+	mother: "Mother",
+	father: "Father",
+	spouse: "Spouse",
+	married: "Married",
+	raisedBy: "Raised by",
+	born: "Born",
+	died: "Died",
+};
 
 function walk(dir: string): string[] {
 	return readdirSync(dir).flatMap((f) => {

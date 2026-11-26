@@ -36,8 +36,13 @@ function randomFamily(seed: number, n: number) {
 
 test("random messy families never crash and keep layout invariants", () => {
 	for (let s = 1; s <= 60; s++) {
-		const store = randomFamily(s, 10 + (s % 50));
-		const tree = buildTree(store, "P0.md", 4 + (s % 5));
+		const n = 10 + (s % 50);
+		const store = randomFamily(s, n);
+		// Alternate hop depth from the oldest person with generation limits from the middle of the family.
+		const tree =
+			s % 2
+				? buildTree(store, "P0.md", 4 + (s % 5))
+				: buildTree(store, `P${Math.floor(n / 2)}.md`, { ancestors: s % 4, descendants: s % 3 });
 		const layout = layoutTree(tree, (t) => t.length * 7);
 		const node = new Map(layout.nodes.map((n) => [n.id, n]));
 		assert.equal(layout.nodes.length, tree.persons.size);

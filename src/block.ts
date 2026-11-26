@@ -63,7 +63,12 @@ export class LineageBlock extends MarkdownRenderChild implements HoverParent {
 
 	private renderTree(el: HTMLElement, previous: ViewState | null): void {
 		const { settings, index } = this.plugin;
-		const opts = parseBlockOptions(this.source, { depth: settings.defaultDepth, height: settings.defaultHeight });
+		const opts = parseBlockOptions(this.source, {
+			depth: settings.defaultDepth,
+			height: settings.defaultHeight,
+			ancestors: settings.defaultAncestors,
+			descendants: settings.defaultDescendants,
+		});
 		if (!opts.seed) {
 			el.createDiv({ cls: "lineage-error", text: "No seed given. Add a line like: seed: [[Person Name]]" });
 			return;
@@ -75,7 +80,7 @@ export class LineageBlock extends MarkdownRenderChild implements HoverParent {
 			return;
 		}
 
-		const tree = buildTree(index.store, seedFile.path, opts.depth);
+		const tree = buildTree(index.store, seedFile.path, opts.generations ?? opts.depth);
 		const layout = layoutTree(tree, makeMeasure());
 		const warnings: LineageWarning[] = [
 			...opts.problems.map((message) => ({ message })),
@@ -100,7 +105,9 @@ export class LineageBlock extends MarkdownRenderChild implements HoverParent {
 		if (tree.persons.size > LARGE_TREE) {
 			el.createDiv({
 				cls: "lineage-notice",
-				text: `This tree has ${tree.persons.size} people. A lower depth will be quicker to draw and easier to read.`,
+				text: `This tree has ${tree.persons.size} people. ${
+					opts.generations ? "Fewer generations" : "A lower depth"
+				} will be quicker to draw and easier to read.`,
 			});
 		}
 		if (warnings.length) this.buildWarnings(el, warnings);

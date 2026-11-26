@@ -9,6 +9,7 @@ export const DEFAULT_PROPS: PropertyNames = {
 	father: "Father",
 	spouse: "Spouse",
 	married: "Married",
+	raisedBy: "Raised by",
 	born: "Born",
 	died: "Died",
 };

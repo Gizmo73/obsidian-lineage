@@ -42,6 +42,11 @@
 	stroke-dasharray: 4 3;
 }
 
+/* From whoever raised someone down to them. Same pattern as RAISED_DOTS in src/svg.ts. */
+.lineage-raised {
+	stroke-dasharray: 1 2.5;
+}
+
 .lineage-name {
 	fill: var(--text-normal);
 	font-size: 13px;

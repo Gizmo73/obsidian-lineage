@@ -6,6 +6,8 @@ export interface PropertyNames {
 	spouse: string;
 	/** Year of marriage, or a list of years in the same order as the spouse links. */
 	married: string;
+	/** People who raised this person in place of, or as well as, their parents. */
+	raisedBy: string;
 	born: string;
 	died: string;
 }
@@ -18,6 +20,8 @@ export interface PersonRecord {
 	spouses: PersonId[];
 	/** Known marriage years from this note, as [spouse, year]. */
 	marriedYears: [PersonId, number][];
+	/** Adoptive, foster or "on paper" parents. */
+	raisedBy: PersonId[];
 	born: number | null;
 	died: number | null;
 	issues: LineageWarning[];
@@ -146,6 +150,17 @@ export function parseRecord(
 		if (y !== null && y !== undefined) marriedYears.push([id, y]);
 	});
 
+	const raisedBy: PersonId[] = [];
+	for (const t of extractLinkTexts(getProp(fm, props.raisedBy))) {
+		const id = toId(t, "raised by");
+		if (!id || raisedBy.includes(id)) continue;
+		if (id === mother || id === father) {
+			warn(`${name} lists ${basename(t)} as both a parent and ${props.raisedBy}. The ${props.raisedBy} link is ignored.`);
+			continue;
+		}
+		raisedBy.push(id);
+	}
+
 	const year = (key: string): number | null => {
 		const raw = getProp(fm, key);
 		const y = parseYear(raw);
@@ -163,6 +178,7 @@ export function parseRecord(
 		father: father === mother ? null : father,
 		spouses,
 		marriedYears,
+		raisedBy,
 		born: year(props.born),
 		died: year(props.died),
 		issues,
@@ -172,7 +188,16 @@ export function parseRecord(
 
 /** Relationship data comparable across updates, to skip redraws for unrelated edits. */
 export function recordSignature(r: PersonRecord): string {
-	return JSON.stringify([r.mother, r.father, r.spouses, r.marriedYears, r.born, r.died, r.issues.map((i) => i.message)]);
+	return JSON.stringify([
+		r.mother,
+		r.father,
+		r.spouses,
+		r.marriedYears,
+		r.raisedBy,
+		r.born,
+		r.died,
+		r.issues.map((i) => i.message),
+	]);
 }
 
 /** In-memory index with reverse lookups for children and spouses. */
@@ -180,12 +205,14 @@ export class RelationshipStore implements GraphSource {
 	private records = new Map<string, PersonRecord>();
 	private childrenRev = new Map<PersonId, Set<string>>();
 	private spouseRev = new Map<PersonId, Set<string>>();
+	private raisedRev = new Map<PersonId, Set<string>>();
 	private missingNames = new Map<PersonId, string>();
 
 	clear(): void {
 		this.records.clear();
 		this.childrenRev.clear();
 		this.spouseRev.clear();
+		this.raisedRev.clear();
 		this.missingNames.clear();
 	}
 
@@ -198,6 +225,7 @@ export class RelationshipStore implements GraphSource {
 		this.records.set(record.path, record);
 		for (const p of [record.mother, record.father]) if (p) addTo(this.childrenRev, p, record.path);
 		for (const s of record.spouses) addTo(this.spouseRev, s, record.path);
+		for (const r of record.raisedBy) addTo(this.raisedRev, r, record.path);
 		for (const [id, name] of record.missingNames) this.missingNames.set(id, name);
 	}
 
@@ -207,6 +235,7 @@ export class RelationshipStore implements GraphSource {
 		this.records.delete(path);
 		for (const p of [old.mother, old.father]) if (p) this.childrenRev.get(p)?.delete(path);
 		for (const s of old.spouses) this.spouseRev.get(s)?.delete(path);
+		for (const r of old.raisedBy) this.raisedRev.get(r)?.delete(path);
 	}
 
 	info(id: PersonId): PersonInfo {
@@ -226,6 +255,14 @@ export class RelationshipStore implements GraphSource {
 
 	children(id: PersonId): PersonId[] {
 		return Array.from(this.childrenRev.get(id) ?? []);
+	}
+
+	raisedBy(id: PersonId): PersonId[] {
+		return this.records.get(id)?.raisedBy ?? [];
+	}
+
+	raisedChildren(id: PersonId): PersonId[] {
+		return Array.from(this.raisedRev.get(id) ?? []);
 	}
 
 	spouses(id: PersonId): PersonId[] {

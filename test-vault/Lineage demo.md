@@ -41,12 +41,14 @@ depth: 1
 height: 300
 ```
 
-## Unmarried co-parents (dashed line)
+## Unmarried co-parents (dashed) and Raised by (dotted)
+
+Ember's parents never married. Oda Marsh raised her, and also Finch, a foundling with no parents on record.
 
 ```lineage
 seed: [[Ember Marsh]]
-depth: 1
-height: 200
+depth: 2
+height: 220
 ```
 
 ## Ancestry cycle and self references

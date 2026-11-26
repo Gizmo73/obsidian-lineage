@@ -22,7 +22,7 @@ const treesJs = await esbuild.build({
 				["brannoc-1", "People/Brannoc Thornvale.md", 1],
 				["brannoc-3", "People/Brannoc Thornvale.md", 3],
 				["vesper-5", "Edge cases/Vesper Loop.md", 5],
-				["ember-1", "Edge cases/Ember Marsh.md", 1],
+				["ember-2", "Edge cases/Ember Marsh.md", 2],
 			];
 			console.log(JSON.stringify(cases.map(([n, s, d]) => {
 				const t = buildTree(store, s, d);

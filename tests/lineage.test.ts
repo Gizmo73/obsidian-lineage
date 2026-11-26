@@ -204,6 +204,56 @@ test("marriage labels sit above the line, in a gap wide enough for them", () => 
 	assert.equal(layoutTree(buildTree(store, "Edge cases/Ember Marsh.md", 1), measure).marriageLabels.length, 0);
 });
 
+test("Raised by is parsed, reverse-indexed and traversed like a parent", () => {
+	const resolve = (l: string) => ({ path: `${l}.md` });
+	const rec = (fm: Record<string, unknown>) => parseRecord("A.md", fm, DEFAULT_PROPS, resolve);
+	assert.deepEqual(rec({ "raised by": ["[[B]]", "[[C]]"] }).raisedBy, ["B.md", "C.md"], "list, any case");
+	const both = rec({ Mother: "[[B]]", "Raised by": ["[[B]]", "[[C]]"] });
+	assert.deepEqual(both.raisedBy, ["C.md"], "a parent is not also a raiser");
+	assert.match(both.issues[0].message, /both a parent and Raised by/);
+	assert.match(rec({ "Raised by": "[[A]]" }).issues[0].message, /lists themselves as raised by/);
+
+	const oda = "Edge cases/Oda Marsh.md";
+	assert.deepEqual(store.raisedChildren(oda).sort(), ["Edge cases/Ember Marsh.md", "Edge cases/Finch Marsh.md"]);
+	const t = buildTree(store, oda, 1);
+	assert.deepEqual(names(t), ["Ember Marsh", "Finch Marsh", "Oda Marsh"]);
+	assert.equal(t.parentEdges.length, 0);
+	assert.equal(t.raisedEdges.length, 2);
+});
+
+test("raised children sit below whoever raised them, joined by dotted lines", () => {
+	const ember = "Edge cases/Ember Marsh.md";
+	const layout = layoutTree(buildTree(store, ember, 1), measure);
+	const node = new Map(layout.nodes.map((n) => [n.info.name, n]));
+	for (const parent of ["Oda Marsh", "Lysa Marsh", "Tavin Cole"]) {
+		assert.ok(node.get(parent)!.gen < node.get("Ember Marsh")!.gen, `${parent} above Ember`);
+	}
+	assert.ok(layout.descentLines.length > 0, "solid line from her parents");
+	assert.ok(layout.raisedLines.length > 0, "dotted line from Oda");
+	// With her real parents also drawn, the dotted line meets her just to one side.
+	const e = node.get("Ember Marsh")!;
+	const ends = layout.raisedLines.map((l) => l[l.length - 1]);
+	assert.ok(ends.some(([x, y]) => Math.abs(y - (e.y - 3)) < 0.01 && x > e.x + 1), "dotted line offset from the solid one");
+
+	// A foundling with nobody but Oda is placed under her like a child.
+	const solo = layoutTree(buildTree(store, "Edge cases/Finch Marsh.md", 1), measure);
+	const sn = new Map(solo.nodes.map((n) => [n.info.name, n]));
+	assert.equal(solo.descentLines.length, 0);
+	assert.ok(solo.raisedLines.length > 0);
+	assert.ok(Math.abs(sn.get("Finch Marsh")!.x - sn.get("Oda Marsh")!.x) < 1, "Finch sits centred under Oda");
+});
+
+test("a loop through Raised by is broken and named", () => {
+	const resolve = (l: string) => ({ path: `${l}.md` });
+	const s = new RelationshipStore();
+	s.set(parseRecord("A.md", { "Raised by": "[[B]]" }, DEFAULT_PROPS, resolve));
+	s.set(parseRecord("B.md", { Mother: "[[A]]" }, DEFAULT_PROPS, resolve));
+	const t = buildTree(s, "A.md", 3);
+	assert.equal(t.parentEdges.length + t.raisedEdges.length, 1, "one of the two links is dropped");
+	assert.match(t.warnings.map((w) => w.message).join("\n"), /Ancestry cycle/);
+	assert.doesNotThrow(() => layoutTree(t, measure));
+});
+
 test("siblings are ordered by birth year, unknown last", () => {
 	const t = buildTree(store, P("Corvin Thornvale"), 1);
 	const layout = layoutTree(t, measure);

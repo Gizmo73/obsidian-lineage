@@ -121,8 +121,12 @@ export function parseRecord(
 
 	// Marriage years pair with spouse links by position: the first year goes
 	// with the first spouse, and so on. A blank or "?" entry is an unknown year.
+	// An empty property (as a note template leaves it) means no years at all.
+	const blank = (v: unknown) => v === undefined || v === null || (typeof v === "string" && !v.trim());
 	const rawMarried = getProp(fm, props.married);
-	const marriedList: unknown[] = Array.isArray(rawMarried) ? rawMarried : rawMarried === undefined ? [] : [rawMarried];
+	const marriedList: unknown[] = Array.isArray(rawMarried) ? rawMarried : blank(rawMarried) ? [] : [rawMarried];
+	// Blank entries at the end of a list stand for no spouse at all, so they don't count.
+	while (marriedList.length && blank(marriedList[marriedList.length - 1])) marriedList.pop();
 	const marriedAt: (number | null)[] = marriedList.map((v) => {
 		if (typeof v === "string" && v.trim() === "?") return null;
 		const y = parseYear(v);
@@ -135,8 +139,9 @@ export function parseRecord(
 
 	const spouseTexts = extractLinkTexts(getProp(fm, props.spouse));
 	if (marriedAt.length > spouseTexts.length) {
+		const n = (k: number, word: string) => `${k} ${word}${k === 1 ? "" : "s"}`;
 		warn(
-			`${name} has ${marriedAt.length} ${props.married} years but ${spouseTexts.length} spouse links. ` +
+			`${name} has ${n(marriedAt.length, `${props.married} year`)} but ${n(spouseTexts.length, "spouse link")}. ` +
 				`Years are matched to spouses in order, so the extra ones are ignored.`,
 		);
 	}

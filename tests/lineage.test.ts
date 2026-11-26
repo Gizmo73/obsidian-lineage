@@ -169,7 +169,21 @@ test("Married years pair with spouses in order; ? and blanks are unknown", () =>
 
 	const extra = rec({ Spouse: "[[B]]", Married: [1355, 1360] });
 	assert.deepEqual(extra.marriedYears, [["B.md", 1355]]);
-	assert.match(extra.issues[0].message, /2 Married years but 1 spouse links/);
+	assert.match(extra.issues[0].message, /2 Married years but 1 spouse link\./);
+});
+
+test("empty template properties are not data problems", () => {
+	// What a note made from a template looks like before it is filled in.
+	const resolve = (l: string) => ({ path: `${l}.md` });
+	const empty = { mother: null, father: null, spouse: null, married: null, "raised by": null, born: null, died: null };
+	const r = parseRecord("A.md", empty, DEFAULT_PROPS, resolve);
+	assert.deepEqual(r.issues, []);
+	assert.deepEqual([r.mother, r.father, r.spouses, r.marriedYears, r.raisedBy], [null, null, [], [], []]);
+
+	assert.deepEqual(parseRecord("A.md", { married: "" }, DEFAULT_PROPS, resolve).issues, [], "empty string");
+	assert.deepEqual(parseRecord("A.md", { married: [null] }, DEFAULT_PROPS, resolve).issues, [], "list with one blank entry");
+	const trailing = parseRecord("A.md", { spouse: "[[B]]", married: [1355, null] }, DEFAULT_PROPS, resolve);
+	assert.deepEqual([trailing.issues, trailing.marriedYears], [[], [["B.md", 1355]]], "trailing blank ignored");
 });
 
 test("a marriage year can come from either spouse; disagreements are warned", () => {

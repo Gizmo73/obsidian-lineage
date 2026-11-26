@@ -34,12 +34,18 @@ jobs:
           npm test
           npm run build
 
-      - name: Create release
+      - name: Create release, or attach the build to an existing one
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
-          gh release create "$tag" \
-            --title="$tag" \
-            --generate-notes \
-            main.js manifest.json styles.css
+          if gh release view "$tag" > /dev/null 2>&1; then
+            # Made on GitHub's release page, which also pushes the tag that started
+            # this run. Keep that release and add (or replace) the plugin files.
+            gh release upload "$tag" main.js manifest.json styles.css --clobber
+          else
+            gh release create "$tag" \
+              --title="$tag" \
+              --generate-notes \
+              main.js manifest.json styles.css
+          fi

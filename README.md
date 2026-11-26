@@ -123,3 +123,5 @@ git push && git push --tags
 ```
 
 Pushing the tag runs `.github/workflows/release.yml`, which tests, builds and publishes a GitHub release with `main.js`, `manifest.json` and `styles.css` attached. BRAT picks it up from there.
+
+Creating the release on GitHub's release page instead also works: publishing it creates the tag, the workflow runs, and the built files are attached to that release rather than a new one being made.

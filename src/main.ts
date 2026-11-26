@@ -1,5 +1,6 @@
 import { Plugin } from "obsidian";
 import { HOVER_SOURCE, LineageBlock } from "./block";
+import { insertFamilyTree } from "./insert-command";
 import { DEFAULT_SETTINGS, LineageSettings, LineageSettingTab } from "./settings";
 import { VaultIndex } from "./vault-index";
 
@@ -20,6 +21,11 @@ export default class LineagePlugin extends Plugin {
 		this.registerHoverLinkSource(HOVER_SOURCE, { display: "Lineage family trees", defaultMod: false });
 		this.registerMarkdownCodeBlockProcessor("lineage", (source, el, ctx) => {
 			ctx.addChild(new LineageBlock(this, el, source, ctx));
+		});
+		this.addCommand({
+			id: "insert-family-tree",
+			name: "Insert family tree",
+			editorCallback: (editor, ctx) => insertFamilyTree(this, editor, ctx.file?.path ?? ""),
 		});
 		this.addSettingTab(new LineageSettingTab(this.app, this));
 	}

@@ -184,3 +184,15 @@
 .markdown-source-view.is-live-preview .lineage-toolbar {
 	right: 36px;
 }
+
+/* Insert family tree pickers. */
+.lineage-suggest-note {
+	font-size: var(--font-ui-smaller, 12px);
+	color: var(--text-muted);
+}
+
+.lineage-suggest-flair {
+	margin-left: 8px;
+	font-size: var(--font-ui-smaller, 12px);
+	color: var(--text-faint);
+}

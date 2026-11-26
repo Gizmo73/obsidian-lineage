@@ -62,6 +62,12 @@ height: 500
 
 If a child is in the tree, both of their parents are drawn even if the second parent is beyond the depth limit, so no child looks like they have one parent.
 
+### Insert family tree command
+
+Run **Lineage Family Tree: Insert family tree** from the command palette while editing a note. Pick the seed from a list of notes, then a depth (your default depth is listed first, or type any whole number), and the block is inserted at the cursor on its own lines, replacing any selection. The note you are editing is at the top of the seed list, so a person's own tree is quick to add.
+
+To keep places, sessions and the like out of the seed list, set **People folder** in settings. The list then shows only notes in that folder and its subfolders. It only affects this command; trees still follow links to people anywhere in the vault.
+
 ### Controls
 
 | | Desktop | Mobile |

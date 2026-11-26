@@ -9,6 +9,8 @@ export interface LineageSettings extends PropertyNames {
 	/** Blank means alongside the note that holds the code block. */
 	exportFolder: string;
 	pdfPageSize: PdfPageSize;
+	/** Where the Insert family tree command looks for seed notes. Blank means the whole vault. */
+	seedFolder: string;
 }
 
 export const DEFAULT_SETTINGS: LineageSettings = {
@@ -23,6 +25,7 @@ export const DEFAULT_SETTINGS: LineageSettings = {
 	defaultHeight: 500,
 	exportFolder: "",
 	pdfPageSize: "fit",
+	seedFolder: "",
 };
 
 export class LineageSettingTab extends PluginSettingTab {
@@ -98,6 +101,20 @@ export class LineageSettingTab extends PluginSettingTab {
 					.onChange(async (v) => {
 						const n = parseInt(v, 10);
 						this.plugin.settings.defaultHeight = Number.isFinite(n) && n >= 100 ? n : DEFAULT_SETTINGS.defaultHeight;
+						await this.plugin.saveSettings(false);
+					}),
+			);
+
+		new Setting(containerEl).setName("Insert command").setHeading();
+		new Setting(containerEl)
+			.setName("People folder")
+			.setDesc("Insert family tree lists seed notes from this folder and its subfolders. Leave blank to list every note.")
+			.addText((t) =>
+				t
+					.setPlaceholder("Whole vault")
+					.setValue(this.plugin.settings.seedFolder)
+					.onChange(async (v) => {
+						this.plugin.settings.seedFolder = v.trim();
 						await this.plugin.saveSettings(false);
 					}),
 			);

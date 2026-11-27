@@ -1,15 +1,36 @@
-import { debounce, HoverParent, HoverPopover, Keymap, MarkdownPostProcessorContext, MarkdownRenderChild, setIcon } from "obsidian";
+import {
+	debounce,
+	HoverParent,
+	HoverPopover,
+	Keymap,
+	MarkdownPostProcessorContext,
+	MarkdownRenderChild,
+	MarkdownSectionInformation,
+	Notice,
+	setIcon,
+	TFile,
+} from "obsidian";
+import { writeBlockBody } from "./block-edit";
 import { exportTree } from "./export";
-import { buildTree } from "./graph";
+import { buildTree, Generations } from "./graph";
 import { Layout, layoutTree, Measure, METRICS } from "./layout";
 import type LineagePlugin from "./main";
 import { PanZoom, ViewState } from "./panzoom";
 import { buildViewSvg } from "./svg";
-import { parseBlockOptions } from "./options";
+import { parseBlockOptions, withGenerations } from "./options";
 import { LineageWarning } from "./types";
 
 export const HOVER_SOURCE = "lineage-family-tree";
 const LARGE_TREE = 300;
+/** Wait for clicks on the generation controls to settle before rewriting the note. */
+const SAVE_DELAY = 800;
+
+/**
+ * Pan and zoom handed from a block that just rewrote its source to the block
+ * Obsidian draws in its place, keyed by note path and new source.
+ */
+const carriedViews = new Map<string, ViewState>();
+const carryKey = (path: string, source: string) => `${path}\u0000${source}`;
 
 /** One rendered `lineage` code block. Owns its listeners and cleans up on unload. */
 export class LineageBlock extends MarkdownRenderChild implements HoverParent {
@@ -17,6 +38,15 @@ export class LineageBlock extends MarkdownRenderChild implements HoverParent {
 	private panzoom: PanZoom | null = null;
 	private lastSeed: string | null = null;
 	private refreshSoon = debounce(() => this.render(false), 300, true);
+	/** Generation limits set with the controls, drawn at once and saved shortly after. */
+	private limits: Generations | null = null;
+	private saveTimer: number | null = null;
+	/** Where the block was at the last click, in case it cannot be asked once unloading. */
+	private lastSection: MarkdownSectionInformation | null = null;
+	private saveFailed = false;
+	private carried: ViewState | null = null;
+	/** The control to focus again after a redraw, so repeated key presses keep working. */
+	private focusStep: string | null = null;
 
 	constructor(
 		private plugin: LineagePlugin,
@@ -32,6 +62,9 @@ export class LineageBlock extends MarkdownRenderChild implements HoverParent {
 		for (const type of ["click", "mousedown", "pointerdown"] as const) {
 			this.registerDomEvent(this.containerEl, type, (e) => e.stopPropagation());
 		}
+		const key = carryKey(this.ctx.sourcePath, this.source);
+		this.carried = carriedViews.get(key) ?? null;
+		carriedViews.delete(key);
 		this.render(true);
 		this.register(this.plugin.index.subscribe(() => this.refreshSoon()));
 		this.register(this.plugin.onSettingsChange(() => this.refreshSoon()));
@@ -39,6 +72,11 @@ export class LineageBlock extends MarkdownRenderChild implements HoverParent {
 
 	onunload(): void {
 		this.refreshSoon.cancel();
+		if (this.saveTimer !== null) {
+			window.clearTimeout(this.saveTimer);
+			this.saveTimer = null;
+			void this.save();
+		}
 		this.panzoom?.destroy();
 		this.panzoom = null;
 	}
@@ -80,7 +118,8 @@ export class LineageBlock extends MarkdownRenderChild implements HoverParent {
 			return;
 		}
 
-		const tree = buildTree(index.store, seedFile.path, opts.generations ?? opts.depth);
+		const generations = this.limits ?? opts.generations;
+		const tree = buildTree(index.store, seedFile.path, generations ?? opts.depth);
 		const layout = layoutTree(tree, makeMeasure());
 		const warnings: LineageWarning[] = [
 			...opts.problems.map((message) => ({ message })),
@@ -97,16 +136,19 @@ export class LineageBlock extends MarkdownRenderChild implements HoverParent {
 		const panzoom = new PanZoom(viewport, stage, layout);
 		this.panzoom = panzoom;
 		if (previous && this.lastSeed === seedFile.path) panzoom.restore(previous);
+		else if (this.carried) panzoom.restore(this.carried);
 		else panzoom.fit();
+		this.carried = null;
 		this.lastSeed = seedFile.path;
 
 		this.buildToolbar(viewport, layout, seedFile.basename);
+		this.buildLimits(viewport, generations ?? { ancestors: settings.defaultAncestors, descendants: settings.defaultDescendants }, !generations);
 
 		if (tree.persons.size > LARGE_TREE) {
 			el.createDiv({
 				cls: "lineage-notice",
 				text: `This tree has ${tree.persons.size} people. ${
-					opts.generations ? "Fewer generations" : "A lower depth"
+					generations ? "Fewer generations" : "A lower depth"
 				} will be quicker to draw and easier to read.`,
 			});
 		}
@@ -135,6 +177,92 @@ export class LineageBlock extends MarkdownRenderChild implements HoverParent {
 			this.plugin.index.invalidate();
 			this.render(true);
 		});
+	}
+
+	/**
+	 * Up and down steppers in the top-left corner. On a block that uses depth
+	 * they start from the default limits, and the first click switches it over.
+	 */
+	private buildLimits(viewport: HTMLElement, shown: Generations, inactive: boolean) {
+		const box = viewport.createDiv({ cls: "lineage-limits" });
+		if (inactive) {
+			box.addClass("is-inactive");
+			box.setAttr("aria-label", "This tree counts hops (depth). Changing these switches it to generations up and down.");
+		}
+		const spin = (key: keyof Generations, icon: string, label: string) => {
+			const group = box.createDiv({ cls: "lineage-spin", attr: { role: "group", "aria-label": label } });
+			setIcon(group.createSpan({ cls: "lineage-spin-icon" }), icon);
+			const step = (delta: number) => {
+				const id = `${key}${delta}`;
+				const b = group.createEl("button", {
+					cls: "lineage-button clickable-icon",
+					attr: { "aria-label": `${delta < 0 ? "Fewer" : "More"} ${label.toLowerCase()}`, "data-step": id },
+				});
+				setIcon(b, delta < 0 ? "minus" : "plus");
+				b.disabled = shown[key] + delta < 0;
+				b.addEventListener("click", (e) => {
+					e.preventDefault();
+					this.changeLimit(shown, key, delta, id);
+				});
+			};
+			step(-1);
+			group.createSpan({ cls: "lineage-spin-value", text: String(shown[key]) });
+			step(1);
+		};
+		spin("ancestors", "arrow-up", "Generations up");
+		spin("descendants", "arrow-down", "Generations down");
+
+		if (this.focusStep) {
+			const buttons = Array.from(box.querySelectorAll<HTMLButtonElement>("button"));
+			const target = buttons.find((b) => b.dataset.step === this.focusStep);
+			// At 0 the minus button is disabled, so move to its plus button.
+			const usable = target && !target.disabled ? target : target?.parentElement?.querySelector<HTMLButtonElement>("button:not([disabled])");
+			usable?.focus({ preventScroll: true });
+			this.focusStep = null;
+		}
+	}
+
+	private changeLimit(shown: Generations, key: keyof Generations, delta: number, stepId: string) {
+		const next = { ...shown, [key]: Math.max(0, shown[key] + delta) };
+		if (next[key] === shown[key]) return;
+		this.limits = next;
+		this.lastSection = this.ctx.getSectionInfo(this.containerEl) ?? this.lastSection;
+		this.focusStep = stepId;
+		this.render(false);
+		if (this.saveTimer !== null) window.clearTimeout(this.saveTimer);
+		this.saveTimer = window.setTimeout(() => {
+			this.saveTimer = null;
+			void this.save();
+		}, SAVE_DELAY);
+	}
+
+	/** Write the current limits into the note, replacing any depth line. */
+	private async save(): Promise<void> {
+		if (!this.limits) return;
+		const newSource = withGenerations(this.source, this.limits);
+		if (newSource === this.source) return;
+		const { app } = this.plugin;
+		const info = this.ctx.getSectionInfo(this.containerEl) ?? this.lastSection;
+		const file = app.vault.getAbstractFileByPath(this.ctx.sourcePath);
+		const key = carryKey(this.ctx.sourcePath, newSource);
+		// Saving redraws the block, so pass the pan and zoom on to its replacement.
+		if (this.panzoom?.touched) carriedViews.set(key, { ...this.panzoom.state });
+		let ok = false;
+		try {
+			if (info && file instanceof TFile) ok = await writeBlockBody(app, file, info.lineStart, info.lineEnd, this.source, newSource);
+		} catch (e) {
+			console.error("Lineage could not save generation limits", e);
+		}
+		if (ok) {
+			this.source = newSource;
+			this.lastSection = null;
+			return;
+		}
+		carriedViews.delete(key);
+		if (!this.saveFailed) {
+			this.saveFailed = true;
+			new Notice("Lineage couldn't save the new generations into the note, because the block has moved or changed. Edit the block to keep them.");
+		}
 	}
 
 	private buildWarnings(el: HTMLElement, warnings: LineageWarning[]) {

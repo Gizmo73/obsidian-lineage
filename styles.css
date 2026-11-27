@@ -120,7 +120,8 @@
 	opacity: 1;
 }
 
-.lineage-toolbar button.lineage-button {
+.lineage-toolbar button.lineage-button,
+.lineage-limits button.lineage-button {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -135,14 +136,77 @@
 	cursor: pointer;
 }
 
-.lineage-toolbar button.lineage-button:hover {
+.lineage-toolbar button.lineage-button:hover,
+.lineage-limits button.lineage-button:not(:disabled):hover {
 	color: var(--text-normal);
 	background: var(--background-modifier-hover);
 }
 
-.lineage-toolbar button.lineage-button svg {
+.lineage-toolbar button.lineage-button svg,
+.lineage-limits button.lineage-button svg {
 	width: 16px;
 	height: 16px;
+}
+
+/* Generations up and down, top left. Wraps to two rows when the view is narrow. */
+
+.lineage-limits {
+	position: absolute;
+	top: 6px;
+	left: 6px;
+	z-index: 2;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2px 8px;
+	max-width: calc(50% - 12px);
+	padding: 2px 4px;
+	border-radius: var(--radius-s, 4px);
+	background: var(--background-primary);
+	opacity: 0.85;
+	cursor: default;
+}
+
+.lineage-limits:hover {
+	opacity: 1;
+}
+
+.lineage-spin {
+	display: flex;
+	align-items: center;
+}
+
+.lineage-spin-icon {
+	display: flex;
+	margin-right: 2px;
+	color: var(--text-muted);
+}
+
+.lineage-spin-icon svg {
+	width: 14px;
+	height: 14px;
+}
+
+.lineage-spin-value {
+	min-width: 1.6em;
+	text-align: center;
+	font-size: var(--font-ui-small, 13px);
+	font-variant-numeric: tabular-nums;
+	color: var(--text-normal);
+}
+
+.lineage-limits button.lineage-button {
+	width: 24px;
+	height: 24px;
+}
+
+.lineage-limits button.lineage-button:disabled {
+	opacity: 0.35;
+	cursor: default;
+}
+
+/* A depth block: the numbers are only defaults until a click switches it over. */
+.lineage-limits.is-inactive .lineage-spin-value {
+	color: var(--text-faint);
 }
 
 /* Messages under the view */

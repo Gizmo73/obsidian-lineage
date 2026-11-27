@@ -11,7 +11,7 @@ export function renderMarriedCodes(plugin: LineagePlugin, el: HTMLElement, ctx: 
 	for (const code of Array.from(el.querySelectorAll("code"))) {
 		if (code.parentElement?.tagName === "PRE" || code.textContent?.trim() !== MARRIED_CODE) continue;
 		const span = code.ownerDocument.createElement("span");
-		span.className = "lineage-married";
+		span.className = "lineage-married-list";
 		code.replaceWith(span);
 		ctx.addChild(new MarriedList(plugin, span, ctx.sourcePath));
 	}

@@ -13,15 +13,16 @@ export type Reach = number | Generations;
 export function buildTree(source: GraphSource, seed: PersonId, reach: Reach): Tree {
 	const included = typeof reach === "number" ? byHops(source, seed, reach) : byGenerations(source, seed, reach);
 
-	// A child drawn with one parent while the other parent exists would look
-	// wrong, so pull in co-parents even past the limits (not traversed).
+	// A child drawn with one parent while the other parent, or whoever raised
+	// them, exists would look wrong, so once either parent is in the tree pull
+	// in the rest even past the limits (not traversed).
 	let added = true;
 	while (added) {
 		added = false;
 		for (const id of Array.from(included)) {
 			const ps = source.parents(id);
-			if (ps.length < 2 || !ps.some((p) => included.has(p))) continue;
-			for (const p of ps) {
+			if (!ps.some((p) => included.has(p))) continue;
+			for (const p of [...ps, ...source.raisedBy(id)]) {
 				if (!included.has(p)) {
 					included.add(p);
 					added = true;

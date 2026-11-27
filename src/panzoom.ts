@@ -65,15 +65,26 @@ export class PanZoom {
 		const h = this.viewport.clientHeight;
 		if (!w || !h) return;
 		const pad = 16;
-		const scale = clamp(Math.min((w - 2 * pad) / this.content.width, (h - 2 * pad) / this.content.height, 1.5));
+		// Start below the corner controls so they never cover the top row.
+		const top = Math.max(pad, this.controlsBottom() + 4);
+		const scale = clamp(Math.min((w - 2 * pad) / this.content.width, (h - top - pad) / this.content.height, 1.5));
 		this.state = {
 			scale,
 			tx: (w - this.content.width * scale) / 2,
-			ty: (h - this.content.height * scale) / 2,
+			ty: top + (h - top - pad - this.content.height * scale) / 2,
 		};
 		this.fitted = true;
 		this.touched = false;
 		this.apply();
+	}
+
+	/** Lowest edge of the toolbar and generation controls, which float over the top of the view. */
+	private controlsBottom(): number {
+		let bottom = 0;
+		for (const el of Array.from(this.viewport.querySelectorAll<HTMLElement>(".lineage-toolbar, .lineage-limits"))) {
+			bottom = Math.max(bottom, el.offsetTop + el.offsetHeight);
+		}
+		return bottom;
 	}
 
 	destroy(): void {

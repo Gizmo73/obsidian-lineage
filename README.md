@@ -68,7 +68,7 @@ There are two ways to say how far a tree reaches:
 - **Generations** (`ancestors` and `descendants`). The tree goes up `ancestors` generations through parents, then takes everyone descended from those ancestors, down to `descendants` generations below the seed. So `ancestors: 1` brings in siblings (and their children, if `descendants` allows), `ancestors: 2` adds aunts, uncles and first cousins, and so on. Everyone's spouses are drawn, but their own families are not followed. Whoever raised someone counts as a parent. If a block gives only one of the two, the other comes from settings.
 - **Hops** (`depth`). The original option, which spreads out in every direction at once, including through spouses to in-laws. Blocks written with `depth` keep working as before. If a block has `depth` as well as `ancestors` or `descendants`, `depth` is ignored and a warning says so.
 
-If a child is in the tree, both of their parents are drawn even if the second parent is beyond the limits, so no child looks like they have one parent.
+If a child is in the tree with one of their parents, their other parent and whoever raised them are drawn too, even beyond the limits, so no child looks like they have one parent or loses the dotted line to whoever raised them.
 
 ### Insert family tree command
 

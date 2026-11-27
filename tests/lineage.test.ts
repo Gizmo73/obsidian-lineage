@@ -235,6 +235,18 @@ test("Raised by is parsed, reverse-indexed and traversed like a parent", () => {
 	assert.equal(t.raisedEdges.length, 2);
 });
 
+test("whoever raised a child is drawn when the child's parents are", () => {
+	const lysa = "Edge cases/Lysa Marsh.md";
+	// Ember's mother is the seed: her father joins as before, and now Oda, who raised her, too.
+	const want = ["Ember Marsh", "Lysa Marsh", "Oda Marsh", "Tavin Cole"];
+	assert.deepEqual(names(buildTree(store, lysa, { ancestors: 0, descendants: 1 })), want);
+	assert.deepEqual(names(buildTree(store, lysa, 1)), want, "past the depth limit too");
+	const t = buildTree(store, lysa, 1);
+	assert.equal(t.raisedEdges.length, 1);
+	// Oda is drawn but not followed, so Finch, whom she also raised, stays out.
+	assert.ok(!names(t).includes("Finch Marsh"));
+});
+
 test("raised children sit below whoever raised them, joined by dotted lines", () => {
 	const ember = "Edge cases/Ember Marsh.md";
 	const layout = layoutTree(buildTree(store, ember, 1), measure);

@@ -135,14 +135,14 @@ export class LineageBlock extends MarkdownRenderChild implements HoverParent {
 
 		const panzoom = new PanZoom(viewport, stage, layout);
 		this.panzoom = panzoom;
+		// Controls first, so fitting can leave room for them.
+		this.buildToolbar(viewport, layout, seedFile.basename);
+		this.buildLimits(viewport, generations ?? { ancestors: settings.defaultAncestors, descendants: settings.defaultDescendants }, !generations);
 		if (previous && this.lastSeed === seedFile.path) panzoom.restore(previous);
 		else if (this.carried) panzoom.restore(this.carried);
 		else panzoom.fit();
 		this.carried = null;
 		this.lastSeed = seedFile.path;
-
-		this.buildToolbar(viewport, layout, seedFile.basename);
-		this.buildLimits(viewport, generations ?? { ancestors: settings.defaultAncestors, descendants: settings.defaultDescendants }, !generations);
 
 		if (tree.persons.size > LARGE_TREE) {
 			el.createDiv({

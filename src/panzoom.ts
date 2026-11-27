@@ -106,7 +106,7 @@ export class PanZoom {
 
 	private onPointerDown(e: PointerEvent) {
 		if (e.pointerType === "mouse" && e.button !== 0) return;
-		if ((e.target as Element).closest?.(".lineage-toolbar")) return;
+		if ((e.target as Element).closest?.(".lineage-toolbar, .lineage-limits")) return;
 		this.pointers.set(e.pointerId, this.local(e));
 		if (this.pointers.size === 1) {
 			this.dragStart = { ...this.local(e), state: { ...this.state } };

@@ -86,6 +86,8 @@ To keep places, sessions and the like out of the seed list, set **People folder*
 
 The toolbar in the top-right corner has **Fit**, **Export PDF**, **Export SVG** and **Refresh**. Plain mouse-wheel scrolling still scrolls the note.
 
+The top-left corner has **↑** and **↓** controls with − and + buttons for the generations up and down. The tree redraws straight away, and a moment after the last click the new numbers are written into the block's `ancestors:` and `descendants:` lines, so the tree opens the same way next time. Neither can go below 0. On a block that uses `depth:`, the controls show your default generations (dimmed) and the first click switches the block over, replacing its `depth:` line. If the block can't be found where it was (for example it was edited in the meantime, or it sits in a list or an embedded note), nothing is written and a notice says so; the tree keeps the new numbers until the note is reopened.
+
 ### Warnings
 
 Problems in the data never break the view. They are listed in a collapsible line under the tree, each linking to the note concerned:
@@ -113,6 +115,7 @@ PDF page size can be **Fit to tree** (one page exactly the size of the tree) or 
 - **PDF text uses the built-in Helvetica font**, which keeps text selectable and the file small but only covers Western European characters. Names in other scripts (for example Cyrillic, Greek, or Chinese) will not print correctly in the PDF. The SVG export is fine.
 - Trees over 300 people are drawn, with a note under the view suggesting fewer generations or a lower depth.
 - Relationships cannot be edited from the tree, and people cannot be dragged.
+- The generation controls can only save into a block that sits directly in the note or inside a callout, not one inside a list or shown through an embed.
 
 ## Development
 

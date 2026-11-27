@@ -61,3 +61,61 @@ export function parseBlockOptions(source: string, defaults: BlockDefaults): Bloc
 	}
 	return opts;
 }
+
+const LIMIT_KEY = /^(\s*)(depth|ancestors|descendants)\s*:/i;
+
+/**
+ * The block's source with ancestors and descendants set, and any depth line
+ * dropped. Other lines keep their order. The two lines go where the first
+ * depth, ancestors or descendants line was, or else straight after the seed.
+ */
+export function withGenerations(source: string, { ancestors, descendants }: Generations): string {
+	const out: string[] = [];
+	let at = -1;
+	let indent = "";
+	for (const line of source.split("\n")) {
+		const m = LIMIT_KEY.exec(line);
+		if (!m) {
+			out.push(line);
+			continue;
+		}
+		if (at < 0) {
+			at = out.length;
+			indent = m[1];
+		}
+	}
+	if (at < 0) {
+		const seed = out.findIndex((l) => /^\s*seed\s*:/i.test(l));
+		at = seed >= 0 ? seed + 1 : out.length;
+		indent = seed >= 0 ? (/^\s*/.exec(out[seed]) as RegExpExecArray)[0] : "";
+	}
+	out.splice(at, 0, `${indent}ancestors: ${ancestors}`, `${indent}descendants: ${descendants}`);
+	return out.join("\n");
+}
+
+/**
+ * The note lines to put between a lineage block's fences, or null if the
+ * note no longer holds `oldBody` there. `start` and `end` are the fence lines.
+ * A block inside a callout keeps its "> " prefix on every line.
+ */
+export function rewriteBody(lines: string[], start: number, end: number, oldBody: string, newBody: string): string[] | null {
+	if (start < 0 || end <= start || end >= lines.length) return null;
+	const open = /^([\s>]*)(`{3,}|~{3,})\s*lineage\s*$/i.exec(lines[start]);
+	if (!open) return null;
+	const [, prefix, fence] = open;
+	const strip = (line: string): string | null => {
+		if (line.startsWith(prefix)) return line.slice(prefix.length);
+		return line.trimEnd() === prefix.trimEnd() ? "" : null;
+	};
+	const close = strip(lines[end]);
+	if (close === null || !close.trim().startsWith(fence)) return null;
+
+	const tidy = (ls: string[]) => {
+		const t = ls.map((l) => l.trimEnd());
+		while (t.length && !t[t.length - 1]) t.pop();
+		return t.join("\n");
+	};
+	const current = lines.slice(start + 1, end).map(strip);
+	if (current.some((l) => l === null) || tidy(current as string[]) !== tidy(oldBody.split("\n"))) return null;
+	return newBody.split("\n").map((l) => (l ? prefix + l : prefix.trimEnd()));
+}

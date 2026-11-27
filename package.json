@@ -1,6 +1,6 @@
 {
   "name": "obsidian-lineage",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Data-driven family trees for Obsidian, built from Mother, Father and Spouse frontmatter.",
   "main": "main.js",
   "scripts": {

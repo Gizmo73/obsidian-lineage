@@ -275,8 +275,9 @@ export class LineageBlock extends MarkdownRenderChild implements HoverParent {
 				const a = li.createEl("a", { cls: "internal-link", text: w.name ?? w.path, href: w.path });
 				a.addEventListener("click", (e) => {
 					e.preventDefault();
-					this.plugin.app.workspace.openLinkText(w.path as string, this.ctx.sourcePath, Keymap.isModEvent(e));
+					this.open(w.path as string, Keymap.isModEvent(e));
 				});
+				this.wireMiddleClick(a, () => w.path as string);
 				a.addEventListener("mouseover", (e) => this.hover(e, a, w.path as string));
 				li.appendText(": ");
 			}
@@ -285,17 +286,39 @@ export class LineageBlock extends MarkdownRenderChild implements HoverParent {
 	}
 
 	private wireLinks(svg: SVGSVGElement) {
-		const target = (e: Event) => (e.target as Element).closest?.("[data-path]") as SVGGElement | null;
+		const person = (node: EventTarget | null) => ((node as Element | null)?.closest?.("[data-path]") as SVGGElement | null) ?? null;
 		svg.addEventListener("click", (e) => {
-			const g = target(e);
+			const g = person(e.target);
 			if (!g) return;
 			e.preventDefault();
-			this.plugin.app.workspace.openLinkText(g.dataset.path as string, this.ctx.sourcePath, Keymap.isModEvent(e));
+			this.open(g.dataset.path as string, Keymap.isModEvent(e));
 		});
+		this.wireMiddleClick(svg, (e) => person(e.target)?.dataset.path ?? null);
 		svg.addEventListener("mouseover", (e) => {
-			const g = target(e);
-			if (g) this.hover(e, g, g.dataset.path as string);
+			const g = person(e.target);
+			// Only on entering a name: moving between its text and hit box fires mouseover
+			// again, and each repeat would restart the page preview's delay.
+			if (g && person(e.relatedTarget) !== g) this.hover(e, g, g.dataset.path as string);
 		});
+	}
+
+	/** Middle-click opens in a new tab. It fires auxclick, not click. */
+	private wireMiddleClick(el: Element, pathAt: (e: MouseEvent) => string | null) {
+		// Stop Windows autoscroll and Linux paste from starting on a name.
+		el.addEventListener("mousedown", (e) => {
+			if ((e as MouseEvent).button === 1 && pathAt(e as MouseEvent)) e.preventDefault();
+		});
+		el.addEventListener("auxclick", (e) => {
+			const me = e as MouseEvent;
+			const path = me.button === 1 ? pathAt(me) : null;
+			if (!path) return;
+			me.preventDefault();
+			this.open(path, Keymap.isModEvent(me) || "tab");
+		});
+	}
+
+	private open(path: string, newLeaf: ReturnType<typeof Keymap.isModEvent>) {
+		void this.plugin.app.workspace.openLinkText(path, this.ctx.sourcePath, newLeaf);
 	}
 
 	private hover(event: MouseEvent, targetEl: Element, linktext: string) {

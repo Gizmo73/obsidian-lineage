@@ -82,7 +82,7 @@ To keep places, sessions and the like out of the seed list, set **People folder*
 |---|---|---|
 | Pan | Drag | One-finger drag |
 | Zoom | Ctrl/Cmd + wheel, or trackpad pinch | Pinch |
-| Open a person | Click a name (Ctrl/Cmd-click for a new tab); hover for a preview | Tap a name |
+| Open a person | Click a name (middle-click or Ctrl/Cmd-click for a new tab); hover for a preview | Tap a name |
 
 The toolbar in the top-right corner has **Fit**, **Export PDF**, **Export SVG** and **Refresh**. Plain mouse-wheel scrolling still scrolls the note.
 

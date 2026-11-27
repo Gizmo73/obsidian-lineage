@@ -103,6 +103,21 @@ Problems in the data never break the view. They are listed in a collapsible line
 
 Plain text in `Mother`/`Father`/`Spouse`/`Raised by` (not a `[[link]]`) is ignored.
 
+## Marriages in a note
+
+Put the inline code `` `lineage-married` `` in a person note, for example in a table cell, and it shows that person's marriages, one per line:
+
+```markdown
+| **Married** | `lineage-married` |
+```
+
+> 1407 to [[Mirela Ashgrove]]
+> 1418 to [[Isolde Fenwick]]
+
+It uses the same data as the trees: marriages recorded on either spouse's note, with the year from either note (this person's first if both give one), oldest first. An unknown year shows as `?`, and a spouse whose note does not exist is greyed out. Names open and preview like any link, middle-click opens a new tab, and the list updates when a marriage is added or changed.
+
+It works in Reading view, and in Live Preview inside tables. Elsewhere in Live Preview it shows as plain inline code until you switch to Reading view.
+
 ## Export
 
 Exports contain only names, years and lines, in black on white, whatever your theme. Files are saved into the vault as `<seed> family tree.pdf` (or `.svg`), next to the note by default or in the export folder set in settings. A number is added if the name is taken.

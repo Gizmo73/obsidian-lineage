@@ -2,7 +2,6 @@ import {
 	debounce,
 	HoverParent,
 	HoverPopover,
-	Keymap,
 	MarkdownPostProcessorContext,
 	MarkdownRenderChild,
 	MarkdownSectionInformation,
@@ -13,6 +12,7 @@ import {
 import { writeBlockBody } from "./block-edit";
 import { exportTree } from "./export";
 import { buildTree, Generations } from "./graph";
+import { wireLinks } from "./links";
 import { Layout, layoutTree, Measure, METRICS } from "./layout";
 import type LineagePlugin from "./main";
 import { PanZoom, ViewState } from "./panzoom";
@@ -20,7 +20,6 @@ import { buildViewSvg } from "./svg";
 import { parseBlockOptions, withGenerations } from "./options";
 import { LineageWarning } from "./types";
 
-export const HOVER_SOURCE = "lineage-family-tree";
 const LARGE_TREE = 300;
 /** Wait for clicks on the generation controls to settle before rewriting the note. */
 const SAVE_DELAY = 800;
@@ -131,7 +130,7 @@ export class LineageBlock extends MarkdownRenderChild implements HoverParent {
 		viewport.style.height = `${opts.height}px`;
 		const { svg, stage } = buildViewSvg(document, layout, tree.seed);
 		viewport.appendChild(svg);
-		this.wireLinks(svg);
+		wireLinks(this.plugin.app, svg, this, () => this.ctx.sourcePath);
 
 		const panzoom = new PanZoom(viewport, stage, layout);
 		this.panzoom = panzoom;
@@ -269,67 +268,15 @@ export class LineageBlock extends MarkdownRenderChild implements HoverParent {
 		const details = el.createEl("details", { cls: "lineage-warnings" });
 		details.createEl("summary", { text: warnings.length === 1 ? "1 warning" : `${warnings.length} warnings` });
 		const list = details.createEl("ul");
+		wireLinks(this.plugin.app, list, this, () => this.ctx.sourcePath);
 		for (const w of warnings) {
 			const li = list.createEl("li");
 			if (w.path) {
-				const a = li.createEl("a", { cls: "internal-link", text: w.name ?? w.path, href: w.path });
-				a.addEventListener("click", (e) => {
-					e.preventDefault();
-					this.open(w.path as string, Keymap.isModEvent(e));
-				});
-				this.wireMiddleClick(a, () => w.path as string);
-				a.addEventListener("mouseover", (e) => this.hover(e, a, w.path as string));
+				li.createEl("a", { cls: "internal-link", text: w.name ?? w.path, href: w.path, attr: { "data-path": w.path } });
 				li.appendText(": ");
 			}
 			li.appendText(w.message);
 		}
-	}
-
-	private wireLinks(svg: SVGSVGElement) {
-		const person = (node: EventTarget | null) => ((node as Element | null)?.closest?.("[data-path]") as SVGGElement | null) ?? null;
-		svg.addEventListener("click", (e) => {
-			const g = person(e.target);
-			if (!g) return;
-			e.preventDefault();
-			this.open(g.dataset.path as string, Keymap.isModEvent(e));
-		});
-		this.wireMiddleClick(svg, (e) => person(e.target)?.dataset.path ?? null);
-		svg.addEventListener("mouseover", (e) => {
-			const g = person(e.target);
-			// Only on entering a name: moving between its text and hit box fires mouseover
-			// again, and each repeat would restart the page preview's delay.
-			if (g && person(e.relatedTarget) !== g) this.hover(e, g, g.dataset.path as string);
-		});
-	}
-
-	/** Middle-click opens in a new tab. It fires auxclick, not click. */
-	private wireMiddleClick(el: Element, pathAt: (e: MouseEvent) => string | null) {
-		// Stop Windows autoscroll and Linux paste from starting on a name.
-		el.addEventListener("mousedown", (e) => {
-			if ((e as MouseEvent).button === 1 && pathAt(e as MouseEvent)) e.preventDefault();
-		});
-		el.addEventListener("auxclick", (e) => {
-			const me = e as MouseEvent;
-			const path = me.button === 1 ? pathAt(me) : null;
-			if (!path) return;
-			me.preventDefault();
-			this.open(path, Keymap.isModEvent(me) || "tab");
-		});
-	}
-
-	private open(path: string, newLeaf: ReturnType<typeof Keymap.isModEvent>) {
-		void this.plugin.app.workspace.openLinkText(path, this.ctx.sourcePath, newLeaf);
-	}
-
-	private hover(event: MouseEvent, targetEl: Element, linktext: string) {
-		this.plugin.app.workspace.trigger("hover-link", {
-			event,
-			source: HOVER_SOURCE,
-			hoverParent: this,
-			targetEl,
-			linktext,
-			sourcePath: this.ctx.sourcePath,
-		});
 	}
 }
 

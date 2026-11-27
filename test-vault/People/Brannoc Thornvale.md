@@ -11,3 +11,8 @@ Born: 1385
 Died: 1442
 ---
 Remarried after Mirela died (scenario 2). Married years follow the Spouse order.
+
+| | |
+|---|---|
+| **Born** | 1385 |
+| **Married** | `lineage-married` |

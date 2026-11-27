@@ -1,6 +1,8 @@
 import { Plugin } from "obsidian";
-import { HOVER_SOURCE, LineageBlock } from "./block";
+import { LineageBlock } from "./block";
 import { insertFamilyTree } from "./insert-command";
+import { HOVER_SOURCE } from "./links";
+import { renderMarriedCodes } from "./married-inline";
 import { DEFAULT_SETTINGS, LineageSettings, LineageSettingTab } from "./settings";
 import { VaultIndex } from "./vault-index";
 
@@ -22,6 +24,7 @@ export default class LineagePlugin extends Plugin {
 		this.registerMarkdownCodeBlockProcessor("lineage", (source, el, ctx) => {
 			ctx.addChild(new LineageBlock(this, el, source, ctx));
 		});
+		this.registerMarkdownPostProcessor((el, ctx) => renderMarriedCodes(this, el, ctx));
 		this.addCommand({
 			id: "insert-family-tree",
 			name: "Insert family tree",

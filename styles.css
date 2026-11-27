@@ -260,3 +260,9 @@
 	font-size: var(--font-ui-smaller, 12px);
 	color: var(--text-faint);
 }
+
+/* `lineage-married` inline code: a spouse whose note does not exist. */
+.lineage-married-missing {
+	color: var(--text-faint);
+	font-style: italic;
+}
